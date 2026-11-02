@@ -7,6 +7,13 @@
 - API：Google Apps Script（チーム用アカウントで運用）
 - 詳しい手順：「PUG テニス練習 出欠サイト 開発手順書」「セキュリティレビュー報告書」
 
+## ドキュメント
+
+| 資料 | 内容 |
+| --- | --- |
+| [仕組みの全体像](docs/ARCHITECTURE.md) | システム構成図、ログインとデータの流れ、データモデル、権限、API、セキュリティ対策、監視、リリースの流れ |
+| [レビュー依頼ガイド](docs/REVIEW_GUIDE.md) | 外部のエンジニアにレビューしてもらうときの観点・動かし方・指摘の伝え方 |
+
 ## ファイル構成
 
 | ファイル | 役割 |
@@ -17,6 +24,8 @@
 | `scripts/review-gate.js` | リリース前の自動チェック |
 | `.github/workflows/review-gate.yml` | 自動チェックと目視チェックを GitHub Actions で実行 |
 | `.github/pull_request_template.md` | プルリクエストの目視チェックリスト |
+| `.github/ISSUE_TEMPLATE/review-finding.md` | レビュー指摘を報告する Issue のひな形 |
+| `docs/` | 仕組みの全体像とレビュー依頼ガイド |
 
 ## 主な機能
 

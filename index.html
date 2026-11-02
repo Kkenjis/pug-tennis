@@ -148,9 +148,17 @@ input{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:
 .primary:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
 
 #toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--primary);color:var(--on-primary);
-  padding:10px 18px;border-radius:999px;font-size:14px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;
-  width:max-content;max-width:88vw;text-align:center;z-index:10;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+  padding:8px 10px 8px 18px;border-radius:999px;font-size:14px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;
+  width:max-content;max-width:88vw;text-align:left;z-index:10;box-shadow:0 4px 14px rgba(0,0,0,.2);
+  display:flex;align-items:center;gap:6px}
 #toast.show{opacity:1}
+#toast .pf{width:30px;height:30px;margin:0;vertical-align:0;flex:none}
+#toast.show .pf{animation:wiggle .5s ease-in-out}
+@keyframes wiggle{0%,100%{transform:rotate(0)}30%{transform:rotate(-12deg)}65%{transform:rotate(10deg)}}
+
+/* PUG の感情アイコン（語尾のあとに付く） */
+.pf{display:inline-block;width:1.35em;height:1.35em;vertical-align:-.32em;margin-left:2px}
+.empty .pf{width:1.5em;height:1.5em}
 .demo{background:var(--maybe-bg);color:var(--maybe);font-size:12px;font-weight:700;text-align:center;padding:6px}
 body.busy button{pointer-events:none}
 body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
@@ -171,9 +179,9 @@ body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
 </nav>
 <main>
   <section id="view-list">
-    <p class="guest-note" id="guestNote" hidden>ゲストとして参加しています。ゲスト歓迎の練習日だけが表示されます。</p>
-    <p class="hint">🎾 時間帯ごとに ○△× を選んでね。もう一度押すと取り消せます。</p>
-    <div id="events"><div class="loading"><span class="ball"></span><p>読み込み中…</p></div></div>
+    <p class="guest-note" id="guestNote" hidden>ゲストとして参加中だワン！ゲスト歓迎の練習日だけが表示されるワン<span data-pug="happy"></span></p>
+    <p class="hint">🎾 時間帯ごとに ○△× を選んでね。もう一度押すと取り消せるワン<span data-pug="ok"></span></p>
+    <div id="events"><div class="loading"><span class="ball"></span><p>読み込み中だワン…</p></div></div>
   </section>
 
   <section id="view-admin" hidden>
@@ -202,10 +210,10 @@ body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
       </div>
       <div class="field">
         <label class="check"><input type="checkbox" id="guestOpen"> ゲストにも公開する</label>
-        <p class="hint" style="margin:6px 0 0">人が少ない日や特別イベントの日に。外部の人も出欠を回答できます。</p>
+        <p class="hint" style="margin:6px 0 0">人が少ない日や特別イベントの日に。外部の人も出欠を回答できるワン</p>
       </div>
       <button class="primary" id="submitEvents">登録する</button>
-      <p class="hint" style="margin-top:10px">選んだすべての日に、同じ時間枠で登録されます。</p>
+      <p class="hint" style="margin-top:10px">選んだすべての日に、同じ時間枠で登録されるワン</p>
     </div>
   </section>
 </main>
@@ -218,7 +226,8 @@ const CONFIG = {
   GAS_URL: 'https://script.google.com/macros/s/AKfycbwUuCVpdcn0RE0eYcxo0MVR7RcPi4hs7u4arnbnND7nRxyOLjwOxO_inwosTMsqCzKbJA/exec', // GASウェブアプリのURL
 };
 const params = new URLSearchParams(location.search);
-const DEMO = CONFIG.LIFF_ID.startsWith('YOUR_') || params.has('demo');
+// パソコンでファイルを直接開いたとき（file://）もデモ表示にする（LINEログインは登録したURLでしか使えないため）
+const DEMO = CONFIG.LIFF_ID.startsWith('YOUR_') || params.has('demo') || location.protocol === 'file:';
 const DEMO_ROLE = ['member', 'guest'].includes(params.get('demo')) ? params.get('demo') : 'admin'; // ?demo=member / ?demo=guest
 const DEMO_ADMIN = DEMO_ROLE === 'admin';
 
@@ -241,25 +250,80 @@ let busy = false;
 let formReady = false;
 let currentTab = 'list';
 
-function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2400);
+// ===== PUG の感情アイコン（オリジナルのパグ顔。happy / ok / sad / oops） =====
+const PUG_EYES = {
+  happy: '<path d="M8.6 14.6q2.2-2.6 4.4 0M19 14.6q2.2-2.6 4.4 0" stroke="#1d1512" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
+  ok: '<circle cx="11" cy="14" r="2" fill="#1d1512"/><circle cx="21" cy="14" r="2" fill="#1d1512"/><circle cx="11.7" cy="13.3" r=".65" fill="#fff"/><circle cx="21.7" cy="13.3" r=".65" fill="#fff"/>',
+  sad: '<circle cx="11" cy="14.6" r="1.8" fill="#1d1512"/><circle cx="21" cy="14.6" r="1.8" fill="#1d1512"/><path d="M8.4 12.2l4.2-1.3M23.6 12.2l-4.2-1.3" stroke="#1d1512" stroke-width="1.3" stroke-linecap="round"/><path d="M8.2 17q-1.3 2.1 0 2.8q1.3-.7 0-2.8z" fill="#6fb8ea"/>',
+  oops: '<circle cx="11" cy="14" r="2.6" fill="#fff" stroke="#1d1512" stroke-width="1"/><circle cx="21" cy="14" r="2.6" fill="#fff" stroke="#1d1512" stroke-width="1"/><circle cx="11" cy="14.3" r="1.4" fill="#1d1512"/><circle cx="21" cy="14.3" r="1.4" fill="#1d1512"/><path d="M27.3 5.2q-1.6 2.6 0 3.5q1.6-.9 0-3.5z" fill="#6fb8ea"/>',
+};
+const PUG_MOUTH = {
+  happy: '<path d="M14.2 22.2q1.8 5 3.6 0z" fill="#ef8aa0"/><path d="M12.4 21.4q1.8 1.7 3.6 0q1.8 1.7 3.6 0" stroke="#1d1512" stroke-width="1.2" fill="none" stroke-linecap="round"/>',
+  ok: '<path d="M12.6 21.6q1.7 1.6 3.4 0q1.7 1.6 3.4 0" stroke="#1d1512" stroke-width="1.2" fill="none" stroke-linecap="round"/>',
+  sad: '<path d="M13.2 23.6q2.8-2.2 5.6 0" stroke="#1d1512" stroke-width="1.2" fill="none" stroke-linecap="round"/>',
+  oops: '<ellipse cx="16" cy="22.8" rx="1.4" ry="1.7" fill="#1d1512"/>',
+};
+function pugFace(mood = 'ok') {
+  const m = PUG_EYES[mood] ? mood : 'ok';
+  return '<svg class="pf" viewBox="0 0 32 32" aria-hidden="true">'
+    + '<ellipse cx="16" cy="17.2" rx="12.2" ry="11.2" fill="#e9c58f" stroke="#3b2f2a" stroke-width="1.4"/>'
+    + '<path d="M3.6 14.2C2.4 8.6 5.6 5.2 11.6 6.2C9.6 8.8 7.2 11.6 3.6 14.2zM28.4 14.2C29.6 8.6 26.4 5.2 20.4 6.2C22.4 8.8 24.8 11.6 28.4 14.2z" fill="#3b2f2a"/>'
+    + '<path d="M13 10.4q3-1.6 6 0" stroke="#b98f5a" stroke-width="1" fill="none" stroke-linecap="round"/>'
+    + '<ellipse cx="16" cy="21.2" rx="7.2" ry="5.6" fill="#8a6a55"/>'
+    + '<ellipse cx="16" cy="18.7" rx="2.5" ry="1.7" fill="#1d1512"/>'
+    + PUG_EYES[m] + PUG_MOUTH[m] + '</svg>';
+}
+document.querySelectorAll('[data-pug]').forEach(el => { el.innerHTML = pugFace(el.dataset.pug); });
+
+function toast(msg, mood = 'ok') {
+  const t = $('#toast'); t.innerHTML = `<span>${esc(msg)}</span>${pugFace(mood)}`;
+  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
+// サーバーのメッセージを PUG 語（語尾ワン）にする
+function wan(msg) {
+  const s = String(msg || '').replace(/[。．.!！]+$/, '');
+  if (!s) return 'うまくいかなかったワン…';
+  if (/ワン$/.test(s)) return s;
+  if (/です$/.test(s)) return s.replace(/です$/, 'だワン');
+  return s + 'ワン';
+}
+function errText(data) {
+  switch (data.error) {
+    case 'full': return 'この時間帯は満員だワン…';
+    case 'closed': return 'この練習日は受付を終了したワン';
+    case 'forbidden': return /管理者/.test(data.message || '') ? '管理者だけができる操作だワン' : 'この練習日はメンバー限定だワン';
+    case 'busy': return '混み合ってるワン…少し待ってからもう一度お願いするワン';
+    case 'not_found': return '見つからなかったワン…削除されたかもしれないワン';
+    case 'bad_request': return wan(data.message);
+    default: return 'サーバーでエラーが起きたワン…少し待ってからもう一度お願いするワン';
+  }
+}
+const pugError = (msg, mood = 'sad') => Object.assign(new Error(msg), { mood });
+
 async function api(action, payload = {}) {
-  if (DEMO) return demoApi(action, payload);
-  const res = await fetch(CONFIG.GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // プリフライト回避
-    body: JSON.stringify({ action, idToken: liff.getIDToken(), ...payload }),
-  });
-  const data = await res.json();
+  let data;
+  if (DEMO) {
+    data = await demoApi(action, payload);
+  } else {
+    try {
+      const res = await fetch(CONFIG.GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // プリフライト回避
+        body: JSON.stringify({ action, idToken: liff.getIDToken(), ...payload }),
+      });
+      data = await res.json();
+    } catch (_) {
+      throw pugError('つながらなかったワン…電波のいい所でもう一度お願いするワン');
+    }
+  }
   if (!data.ok) {
     if (data.error === 'auth') {
-      if (relogin()) throw new Error('ログインし直しています…');
-      throw new Error('ログインできませんでした。少し時間をおいて開き直してください');
+      if (relogin()) throw pugError('ログインし直してるワン…', 'oops');
+      throw pugError('ログインできなかったワン…少し時間をおいて開き直してほしいワン');
     }
-    throw new Error(data.message || 'エラーが発生しました');
+    throw pugError(errText(data), data.error === 'bad_request' ? 'oops' : 'sad');
   }
   try { sessionStorage.removeItem('pugRelogin'); } catch (_) {}
   return data;
@@ -275,11 +339,11 @@ function relogin() {
   return true;
 }
 
-async function run(fn, msg) {
+async function run(fn, msg, mood = 'happy') {
   if (busy) return false;
   busy = true; document.body.classList.add('busy');
-  try { render(await fn()); if (msg) toast(msg); return true; }
-  catch (err) { toast(err.message); return false; }
+  try { render(await fn()); if (msg) toast(msg, mood); return true; }
+  catch (err) { toast(err.message, err.mood || 'sad'); return false; }
   finally { busy = false; document.body.classList.remove('busy'); }
 }
 
@@ -300,8 +364,8 @@ function render(data) {
   $('#events').innerHTML = upcoming.length
     ? upcoming.map(cardHtml).join('')
     : guest
-      ? emptyHtml('ゲスト歓迎の練習日はまだないワン<br><small>公開されたらここに出てきます</small>')
-      : emptyHtml('練習日はまだないワン<br><small>決まったらここに出てきます</small>');
+      ? emptyHtml(`ゲスト歓迎の練習日はまだないワン${pugFace('sad')}<br><small>公開されたらここに出てくるワン</small>`)
+      : emptyHtml(`練習日はまだないワン${pugFace('sad')}<br><small>決まったらここに出てくるワン</small>`);
 
   if (data.me.isAdmin && !formReady) { addSlotRow('09:00', '11:00', 0); formReady = true; }
 }
@@ -314,7 +378,7 @@ function cardHtml(ev) {
       ${state.me.isAdmin ? `<button class="del" data-del="${esc(ev.id)}" data-label="${esc(fmtDateText(ev.date))}">削除</button>` : ''}
     </div>
     ${state.me.isAdmin ? `<div class="admin-bar">ゲストへの公開<button class="gtoggle${ev.guestOpen ? ' on' : ''}" data-guest="${esc(ev.id)}" data-open="${ev.guestOpen ? 0 : 1}">${ev.guestOpen ? '公開中' : 'メンバー限定'}</button></div>` : ''}
-    ${ev.slots.length ? ev.slots.map(slotHtml).join('') : '<div class="slot note">時間枠がありません</div>'}
+    ${ev.slots.length ? ev.slots.map(slotHtml).join('') : '<div class="slot note">時間枠がないワン</div>'}
   </article>`;
 }
 
@@ -338,9 +402,9 @@ function slotHtml(s) {
   return `<div class="slot">
     <div class="slot-head"><span><span class="time">${fmtTime(s.start)}〜${fmtTime(s.end)}</span>${s.fee > 0 ? `<span class="fee">${yen(s.fee)}</span>` : ''}</span><span class="count${full ? ' full' : ''}">${count}</span></div>
     <div class="btns">${btn('○','参加')}${btn('△','未定')}${btn('×','不参加')}</div>
-    ${s.myStatus === '○' && s.fee > 0 ? `<div class="fee-note">🎾 参加費 <b>${yen(s.fee)}</b> です</div>` : ''}
+    ${s.myStatus === '○' && s.fee > 0 ? `<div class="fee-note">🎾 参加費は <b>${yen(s.fee)}</b> だワン${pugFace('happy')}</div>` : ''}
     ${s.myStatus ? `<input class="comment" data-slot="${esc(s.id)}" maxlength="100" placeholder="ひとこと（任意）例：30分遅れます" value="${esc(s.myComment)}">` : ''}
-    <div class="members">${rows || '<span class="note">まだ回答はありません</span>'}</div>
+    <div class="members">${rows || '<span class="note">まだ回答はないワン</span>'}</div>
   </div>`;
 }
 
@@ -350,21 +414,26 @@ document.addEventListener('click', async e => {
   if (st) {
     const s = findSlot(st.dataset.slot);
     const next = s.myStatus === st.dataset.s ? '' : st.dataset.s;
-    await run(() => api('entry', { slotId: s.id, status: next, comment: next ? s.myComment : '' }),
-      next === '○' ? '参加ありがとうワン！🎾' : next ? '回答しました🐾' : '回答を取り消しました');
+    const [msg, mood] = {
+      '○': ['参加ありがとうワン！', 'happy'],
+      '△': ['決まったら教えてほしいワン！', 'ok'],
+      '×': ['また今度だワン！', 'sad'],
+      '': ['回答を取り消したワン', 'oops'],
+    }[next];
+    await run(() => api('entry', { slotId: s.id, status: next, comment: next ? s.myComment : '' }), msg, mood);
     return;
   }
   const gt = e.target.closest('[data-guest]');
   if (gt) {
     const open = gt.dataset.open === '1';
     await run(() => api('setGuestOpen', { eventId: gt.dataset.guest, open }),
-      open ? 'ゲストにも公開しました🐾' : 'メンバー限定に戻しました');
+      open ? 'ゲストにも公開したワン！' : 'メンバー限定に戻したワン', open ? 'happy' : 'ok');
     return;
   }
   const del = e.target.closest('[data-del]');
   if (del) {
-    if (!confirm(`${del.dataset.label} の練習日を削除しますか？\n回答もすべて消えます。`)) return;
-    await run(() => api('deleteEvent', { eventId: del.dataset.del }), '削除しました');
+    if (!confirm(`${del.dataset.label} の練習日を削除するワン？\n回答もすべて消えるワン`)) return;
+    await run(() => api('deleteEvent', { eventId: del.dataset.del }), '削除したワン', 'ok');
     return;
   }
   const tab = e.target.closest('nav button');
@@ -374,7 +443,7 @@ document.addEventListener('click', async e => {
 document.addEventListener('change', async e => {
   if (!e.target.matches('input.comment')) return;
   const s = findSlot(e.target.dataset.slot);
-  await run(() => api('entry', { slotId: s.id, status: s.myStatus, comment: e.target.value.trim() }), 'コメントを保存しました');
+  await run(() => api('entry', { slotId: s.id, status: s.myStatus, comment: e.target.value.trim() }), 'コメントを保存したワン！', 'happy');
 });
 
 function switchTab(name) {
@@ -395,8 +464,8 @@ function renderChips() {
 }
 $('#addDate').onclick = () => {
   const v = $('#dateInput').value;
-  if (!v) return toast('日付を選んでください');
-  if (v < localYmd()) return toast('過去の日付は選べません');
+  if (!v) return toast('日付を選んでほしいワン', 'oops');
+  if (v < localYmd()) return toast('過去の日付は選べないワン', 'oops');
   pickedDates.add(v); renderChips();
 };
 $('#dateChips').onclick = e => {
@@ -422,7 +491,7 @@ function addSlotRow(start = '', end = '', cap = 0) {
   s.addEventListener('change', () => { if (f.dataset.manual !== '1') f.value = defaultFee(s.value); });
   f.addEventListener('input', () => { f.dataset.manual = '1'; });
   row.querySelector('.x').onclick = () => {
-    if ($('#slotRows').children.length > 1) row.remove(); else toast('時間枠は1つ以上必要です');
+    if ($('#slotRows').children.length > 1) row.remove(); else toast('時間枠は1つ以上必要だワン', 'oops');
   };
   $('#slotRows').appendChild(row);
 }
@@ -434,11 +503,11 @@ $('#submitEvents').onclick = async () => {
     start: r.querySelector('.s').value, end: r.querySelector('.e').value,
     capacity: Number(r.querySelector('.c').value) || 0, fee: r.querySelector('.f').value,
   }));
-  if (!dates.length) return toast('開催日を追加してください（日付を選んで「追加」）');
-  if (slots.some(s => !s.start || !s.end || s.start >= s.end)) return toast('時間枠の開始・終了を確認してください');
+  if (!dates.length) return toast('開催日を追加してほしいワン（日付を選んで「追加」）', 'oops');
+  if (slots.some(s => !s.start || !s.end || s.start >= s.end)) return toast('時間枠の開始・終了を確認してほしいワン', 'oops');
   const guestOpen = $('#guestOpen').checked;
   const ok = await run(() => api('createEvents', { dates, place: $('#place').value.trim(), note: $('#note').value.trim(), slots, guestOpen }),
-    `${dates.length}日分を登録しました${guestOpen ? '（ゲストにも公開）' : ''}`);
+    `${dates.length}日分を登録したワン！${guestOpen ? '（ゲストにも公開）' : ''}`, 'happy');
   if (ok) { pickedDates.clear(); renderChips(); $('#guestOpen').checked = false; switchTab('list'); }
 };
 
@@ -453,7 +522,7 @@ async function init() {
     }
     render(await api('list'));
   } catch (err) {
-    $('#events').innerHTML = emptyHtml(`うまく読み込めなかったワン…<br><small>${esc(err.message)}</small>`);
+    $('#events').innerHTML = emptyHtml(`うまく読み込めなかったワン…${pugFace('sad')}<br><small>${esc(err.message)}</small>`);
   }
 }
 init();
@@ -466,13 +535,13 @@ function demoApi(action, p) {
   const reply = () => new Promise(r => setTimeout(() => r({
     ok: true, today: localYmd(), me: { name: me, isAdmin: DEMO_ADMIN, isMember }, settings: db.settings, events: demoList(db, isMember),
   }), 200));
-  const fail = msg => new Promise((_, j) => setTimeout(() => j(new Error(msg)), 200));
+  const fail = (error, message) => new Promise(r => setTimeout(() => r({ ok: false, error, message }), 200)); // 本番と同じ形のエラー
 
   if (action === 'entry') {
     const slot = db.slots.find(s => s.id === p.slotId);
     const cur = db.entries.find(x => x.slotId === p.slotId && x.userId === 'me');
     const others = db.entries.filter(x => x.slotId === p.slotId && x.userId !== 'me' && x.status === '○').length;
-    if (p.status === '○' && slot.capacity > 0 && others >= slot.capacity) return fail('この時間帯は定員に達しています');
+    if (p.status === '○' && slot.capacity > 0 && others >= slot.capacity) return fail('full', 'この時間帯は定員に達しています');
     if (!p.status) db.entries = db.entries.filter(x => x !== cur);
     else if (cur) { cur.status = p.status; cur.comment = p.comment || ''; }
     else db.entries.push({ slotId: p.slotId, userId: 'me', name: me, status: p.status, comment: p.comment || '', guest: !isMember, t: Date.now() });

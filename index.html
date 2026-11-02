@@ -255,15 +255,24 @@ async function api(action, payload = {}) {
   });
   const data = await res.json();
   if (!data.ok) {
-    if (data.error === 'auth') { relogin(); throw new Error('ログインし直しています…'); }
+    if (data.error === 'auth') {
+      if (relogin()) throw new Error('ログインし直しています…');
+      throw new Error('ログインできませんでした。少し時間をおいて開き直してください');
+    }
     throw new Error(data.message || 'エラーが発生しました');
   }
+  try { sessionStorage.removeItem('pugRelogin'); } catch (_) {}
   return data;
 }
 
+// 再ログインは連続2回まで（設定ミスなどで再読み込みが止まらなくなるのを防ぐ）
 function relogin() {
-  if (liff.isInClient()) { location.reload(); return; }
+  let n = 0;
+  try { n = Number(sessionStorage.getItem('pugRelogin') || 0); sessionStorage.setItem('pugRelogin', String(n + 1)); } catch (_) {}
+  if (n >= 2) return false;
+  if (liff.isInClient()) { location.reload(); return true; }
   liff.logout(); liff.login({ redirectUri: location.href });
+  return true;
 }
 
 async function run(fn, msg) {

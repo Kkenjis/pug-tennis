@@ -226,7 +226,8 @@ const CONFIG = {
   GAS_URL: 'https://script.google.com/macros/s/AKfycbwUuCVpdcn0RE0eYcxo0MVR7RcPi4hs7u4arnbnND7nRxyOLjwOxO_inwosTMsqCzKbJA/exec', // GASウェブアプリのURL
 };
 const params = new URLSearchParams(location.search);
-const DEMO = CONFIG.LIFF_ID.startsWith('YOUR_') || params.has('demo');
+// パソコンでファイルを直接開いたとき（file://）もデモ表示にする（LINEログインは登録したURLでしか使えないため）
+const DEMO = CONFIG.LIFF_ID.startsWith('YOUR_') || params.has('demo') || location.protocol === 'file:';
 const DEMO_ROLE = ['member', 'guest'].includes(params.get('demo')) ? params.get('demo') : 'admin'; // ?demo=member / ?demo=guest
 const DEMO_ADMIN = DEMO_ROLE === 'admin';
 

@@ -20,6 +20,7 @@
   --maybe:#a86a12;--maybe-bg:#fbefd9;--no:#8a7f78;--no-bg:#f0ebe6;
   --primary:#3b2f2a;--on-primary:#fbf6ec;--tongue:#ef8aa0;
   --danger:#c0392b;--pp:#d6002f;--pp-bg:#fdeaee;--sat:#2f6fb5;--sun:#c0392b;
+  --g-bg:#fde4ea;--g-text:#b8325a;
 }
 @media (prefers-color-scheme:dark){
   :root{
@@ -29,6 +30,7 @@
     --maybe:#e0a84a;--maybe-bg:#3d301b;--no:#b0a69e;--no-bg:#332c27;
     --primary:#ecd3a6;--on-primary:#2a211c;--tongue:#ff9fb3;
     --danger:#e57368;--pp:#ff6b85;--pp-bg:#3d1c24;--sat:#7fb2ec;--sun:#f08a7e;
+    --g-bg:#4a2430;--g-text:#ff9fb3;
   }
 }
 *{box-sizing:border-box}
@@ -99,6 +101,16 @@ main{max-width:640px;margin:0 auto;padding:14px 16px 56px}
 .names .me{font-weight:800;text-decoration:underline;text-decoration-color:var(--tongue);text-decoration-thickness:3px;text-underline-offset:3px}
 .names .c{color:var(--sub);font-size:12px}
 
+/* ゲスト */
+.guest-badge{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:999px;background:var(--g-bg);color:var(--g-text);font-size:11.5px;font-weight:800}
+.gtag{display:inline-block;margin-left:3px;padding:0 6px;border-radius:999px;background:var(--g-bg);color:var(--g-text);font-size:10.5px;font-weight:800;vertical-align:1px}
+.admin-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1.5px dashed var(--line);background:var(--bg);font-size:12.5px;color:var(--sub);font-weight:700}
+.gtoggle{margin-left:auto;padding:6px 12px;border-radius:999px;border:2px solid var(--line);background:var(--card);color:var(--sub);font:inherit;font-size:12.5px;font-weight:800}
+.gtoggle.on{background:var(--g-bg);border-color:var(--g-text);color:var(--g-text)}
+.guest-note{background:var(--g-bg);color:var(--g-text);border-radius:14px;padding:10px 14px;font-size:13px;font-weight:700;margin:0 0 12px}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--text);margin:0}
+.check input{width:20px;height:20px;accent-color:var(--g-text)}
+
 /* 空・読み込み */
 .empty{color:var(--sub);text-align:center;padding:36px 16px;font-weight:700}
 .empty-pug{width:96px;height:96px;display:block;margin:0 auto 10px;opacity:.95}
@@ -159,6 +171,7 @@ body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
 </nav>
 <main>
   <section id="view-list">
+    <p class="guest-note" id="guestNote" hidden>ゲストとして参加しています。ゲスト歓迎の練習日だけが表示されます。</p>
     <p class="hint">🎾 時間帯ごとに ○△× を選んでね。もう一度押すと取り消せます。</p>
     <div id="events"><div class="loading"><span class="ball"></span><p>読み込み中…</p></div></div>
   </section>
@@ -187,6 +200,10 @@ body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
         <div id="slotRows"></div>
         <button type="button" class="sub-btn" id="addSlot">＋ 時間枠を追加</button>
       </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="guestOpen"> ゲストにも公開する</label>
+        <p class="hint" style="margin:6px 0 0">人が少ない日や特別イベントの日に。外部の人も出欠を回答できます。</p>
+      </div>
       <button class="primary" id="submitEvents">登録する</button>
       <p class="hint" style="margin-top:10px">選んだすべての日に、同じ時間枠で登録されます。</p>
     </div>
@@ -202,7 +219,8 @@ const CONFIG = {
 };
 const params = new URLSearchParams(location.search);
 const DEMO = CONFIG.LIFF_ID.startsWith('YOUR_') || params.has('demo');
-const DEMO_ADMIN = params.get('demo') !== 'member'; // ?demo=member でメンバー表示
+const DEMO_ROLE = ['member', 'guest'].includes(params.get('demo')) ? params.get('demo') : 'admin'; // ?demo=member / ?demo=guest
+const DEMO_ADMIN = DEMO_ROLE === 'admin';
 
 // ===== 共通 =====
 const $ = s => document.querySelector(s);
@@ -263,14 +281,18 @@ function findSlot(id) {
 // ===== 描画 =====
 function render(data) {
   state = data;
-  $('#me').textContent = data.me.name ? `${data.me.name} さん` : '';
+  const guest = !data.me.isMember;
+  $('#me').textContent = data.me.name ? `${data.me.name} さん${guest ? '（ゲスト）' : ''}` : '';
+  $('#guestNote').hidden = !guest;
   $('#tabs').hidden = !data.me.isAdmin;
   if (!data.me.isAdmin && currentTab !== 'list') switchTab('list');
 
   const upcoming = data.events.filter(ev => ev.date >= data.today);
   $('#events').innerHTML = upcoming.length
     ? upcoming.map(cardHtml).join('')
-    : emptyHtml('練習日はまだないワン<br><small>決まったらここに出てきます</small>');
+    : guest
+      ? emptyHtml('ゲスト歓迎の練習日はまだないワン<br><small>公開されたらここに出てきます</small>')
+      : emptyHtml('練習日はまだないワン<br><small>決まったらここに出てきます</small>');
 
   if (data.me.isAdmin && !formReady) { addSlotRow('09:00', '11:00', 0); formReady = true; }
 }
@@ -279,9 +301,10 @@ function cardHtml(ev) {
   return `<article class="card">
     <div class="card-head">
       <div class="date">${fmtDate(ev.date)}</div>
-      <div><div class="place">${esc(ev.place || '場所未定')}</div>${ev.note ? `<div class="note">${esc(ev.note)}</div>` : ''}</div>
+      <div><div class="place">${esc(ev.place || '場所未定')}</div>${ev.note ? `<div class="note">${esc(ev.note)}</div>` : ''}${ev.guestOpen ? '<span class="guest-badge">ゲスト歓迎</span>' : ''}</div>
       ${state.me.isAdmin ? `<button class="del" data-del="${esc(ev.id)}" data-label="${esc(fmtDateText(ev.date))}">削除</button>` : ''}
     </div>
+    ${state.me.isAdmin ? `<div class="admin-bar">ゲストへの公開<button class="gtoggle${ev.guestOpen ? ' on' : ''}" data-guest="${esc(ev.id)}" data-open="${ev.guestOpen ? 0 : 1}">${ev.guestOpen ? '公開中' : 'メンバー限定'}</button></div>` : ''}
     ${ev.slots.length ? ev.slots.map(slotHtml).join('') : '<div class="slot note">時間枠がありません</div>'}
   </article>`;
 }
@@ -299,7 +322,7 @@ function slotHtml(s) {
     const list = by(st);
     if (!list.length) return '';
     const names = list.map(e =>
-      `<span class="${e.me ? 'me' : ''}">${esc(e.name)}</span>${e.comment ? `<span class="c">（${esc(e.comment)}）</span>` : ''}`
+      `<span class="${e.me ? 'me' : ''}">${esc(e.name)}</span>${e.guest ? '<span class="gtag">ゲスト</span>' : ''}${e.comment ? `<span class="c">（${esc(e.comment)}）</span>` : ''}`
     ).join('、');
     return `<div class="mrow"><span class="mk ${cls}">${st}</span><span class="names">${names}</span></div>`;
   }).join('');
@@ -320,6 +343,13 @@ document.addEventListener('click', async e => {
     const next = s.myStatus === st.dataset.s ? '' : st.dataset.s;
     await run(() => api('entry', { slotId: s.id, status: next, comment: next ? s.myComment : '' }),
       next === '○' ? '参加ありがとうワン！🎾' : next ? '回答しました🐾' : '回答を取り消しました');
+    return;
+  }
+  const gt = e.target.closest('[data-guest]');
+  if (gt) {
+    const open = gt.dataset.open === '1';
+    await run(() => api('setGuestOpen', { eventId: gt.dataset.guest, open }),
+      open ? 'ゲストにも公開しました🐾' : 'メンバー限定に戻しました');
     return;
   }
   const del = e.target.closest('[data-del]');
@@ -397,9 +427,10 @@ $('#submitEvents').onclick = async () => {
   }));
   if (!dates.length) return toast('開催日を追加してください（日付を選んで「追加」）');
   if (slots.some(s => !s.start || !s.end || s.start >= s.end)) return toast('時間枠の開始・終了を確認してください');
-  const ok = await run(() => api('createEvents', { dates, place: $('#place').value.trim(), note: $('#note').value.trim(), slots }),
-    `${dates.length}日分を登録しました`);
-  if (ok) { pickedDates.clear(); renderChips(); switchTab('list'); }
+  const guestOpen = $('#guestOpen').checked;
+  const ok = await run(() => api('createEvents', { dates, place: $('#place').value.trim(), note: $('#note').value.trim(), slots, guestOpen }),
+    `${dates.length}日分を登録しました${guestOpen ? '（ゲストにも公開）' : ''}`);
+  if (ok) { pickedDates.clear(); renderChips(); $('#guestOpen').checked = false; switchTab('list'); }
 };
 
 // ===== 起動 =====
@@ -421,9 +452,10 @@ init();
 // ===== デモ用（LIFF_ID未設定 or ?demo で動作。本番では使われません） =====
 function demoApi(action, p) {
   const db = window.__demo || (window.__demo = makeDemo());
-  const me = DEMO_ADMIN ? 'デモ管理者' : 'デモメンバー';
+  const me = { admin: 'デモ管理者', member: 'デモメンバー', guest: 'デモゲスト' }[DEMO_ROLE];
+  const isMember = DEMO_ROLE !== 'guest';
   const reply = () => new Promise(r => setTimeout(() => r({
-    ok: true, today: localYmd(), me: { name: me, isAdmin: DEMO_ADMIN }, settings: db.settings, events: demoList(db),
+    ok: true, today: localYmd(), me: { name: me, isAdmin: DEMO_ADMIN, isMember }, settings: db.settings, events: demoList(db, isMember),
   }), 200));
   const fail = msg => new Promise((_, j) => setTimeout(() => j(new Error(msg)), 200));
 
@@ -434,11 +466,13 @@ function demoApi(action, p) {
     if (p.status === '○' && slot.capacity > 0 && others >= slot.capacity) return fail('この時間帯は定員に達しています');
     if (!p.status) db.entries = db.entries.filter(x => x !== cur);
     else if (cur) { cur.status = p.status; cur.comment = p.comment || ''; }
-    else db.entries.push({ slotId: p.slotId, userId: 'me', name: me, status: p.status, comment: p.comment || '', t: Date.now() });
+    else db.entries.push({ slotId: p.slotId, userId: 'me', name: me, status: p.status, comment: p.comment || '', guest: !isMember, t: Date.now() });
+  } else if (action === 'setGuestOpen') {
+    db.events.find(e => e.id === p.eventId).guestOpen = p.open;
   } else if (action === 'createEvents') {
     p.dates.forEach(d => {
       const id = 'ev' + Math.random().toString(36).slice(2, 8);
-      db.events.push({ id, date: d, place: p.place, note: p.note });
+      db.events.push({ id, date: d, place: p.place, note: p.note, guestOpen: !!p.guestOpen });
       p.slots.forEach(s => db.slots.push({ id: 'sl' + Math.random().toString(36).slice(2, 8), eventId: id,
         start: s.start, end: s.end, capacity: s.capacity, fee: s.fee === '' ? defaultFee(s.start) : Number(s.fee) }));
     });
@@ -455,8 +489,8 @@ function makeDemo() {
   const db = {
     settings: { morningFee: 300, nightFee: 500, nightStart: '17:00' },
     events: [
-      { id: 'e1', date: day(3), place: '○○公園テニスコート 3番', note: 'ボールは各自持参' },
-      { id: 'e2', date: day(6), place: '△△運動公園', note: 'ナイターは照明代込み' },
+      { id: 'e1', date: day(3), place: '○○公園テニスコート 3番', note: 'ボールは各自持参', guestOpen: false },
+      { id: 'e2', date: day(6), place: '△△運動公園', note: '特別イベント：初心者歓迎デー', guestOpen: true },
     ],
     slots: [
       { id: 's1', eventId: 'e1', start: '09:00', end: '11:00', capacity: 8, fee: 300 },
@@ -466,21 +500,21 @@ function makeDemo() {
     ],
     entries: [],
   };
-  const add = (slotId, name, status, comment = '') => db.entries.push({ slotId, userId: name, name, status, comment, t: db.entries.length });
+  const add = (slotId, name, status, comment = '', guest = false) => db.entries.push({ slotId, userId: name, name, status, comment, guest, t: db.entries.length });
   add('s1', 'たろう', '○'); add('s1', 'はなこ', '○'); add('s1', 'けん', '△', '仕事次第'); add('s1', 'みさき', '×');
   add('s2', 'たろう', '○'); add('s2', 'ゆうと', '○'); add('s2', 'あおい', '○'); add('s2', 'みさき', '○');
-  add('s3', 'はなこ', '○', '30分遅れます'); add('s3', 'けん', '○'); add('s4', 'けん', '△');
+  add('s3', 'はなこ', '○', '30分遅れます'); add('s3', 'けん', '○'); add('s3', 'さくら', '○', '友人の紹介です', true); add('s4', 'けん', '△');
   return db;
 }
-function demoList(db) {
+function demoList(db, isMember) {
   const today = localYmd();
-  return db.events.filter(ev => ev.date >= today).sort((a, b) => a.date.localeCompare(b.date)).map(ev => ({
+  return db.events.filter(ev => ev.date >= today && (isMember || ev.guestOpen)).sort((a, b) => a.date.localeCompare(b.date)).map(ev => ({
     ...ev,
     slots: db.slots.filter(s => s.eventId === ev.id).sort((a, b) => a.start.localeCompare(b.start)).map(s => {
       const es = db.entries.filter(x => x.slotId === s.id).sort((a, b) => a.t - b.t);
       const m = es.find(x => x.userId === 'me');
       return { id: s.id, start: s.start, end: s.end, capacity: s.capacity, fee: s.fee,
-        entries: es.map(x => ({ name: x.name, status: x.status, comment: x.comment, me: x.userId === 'me' })),
+        entries: es.map(x => ({ name: x.name, status: x.status, comment: x.comment, me: x.userId === 'me', guest: !!x.guest })),
         myStatus: m ? m.status : '', myComment: m ? m.comment : '' };
     }),
   }));

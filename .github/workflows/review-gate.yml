@@ -1,0 +1,35 @@
+name: review-gate
+
+# main へのマージ前に必ず通るチェック（ブランチ保護で「必須」に設定する）
+#   security-check … コードのセキュリティ自動チェック
+#   human-check    … プルリクエストの目視チェックリストがすべて済んでいるか
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/review-gate.js security
+
+  human-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/review-gate.js human
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}

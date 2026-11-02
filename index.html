@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PUG 練習出欠</title>
+<meta name="theme-color" content="#ecd3a6">
+<link rel="icon" type="image/png" href="pug.png">
+<link rel="apple-touch-icon" href="pug-touch.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+/* ===== PUG カラー（パグの毛色・マズル・テニスボール） ===== */
+:root{
+  --bg:#fbf6ec;--card:#fff;--text:#3a2e28;--sub:#8a7a6e;--line:#efe4d2;
+  --head-bg:#ecd3a6;--head-text:#3b2f2a;--date-bg:#f6e7cb;--date-text:#3b2f2a;
+  --accent:#5d7f0f;--ball:#c5dd3b;--ok:#5d7f0f;--ok-bg:#eef6cf;
+  --maybe:#a86a12;--maybe-bg:#fbefd9;--no:#8a7f78;--no-bg:#f0ebe6;
+  --primary:#3b2f2a;--on-primary:#fbf6ec;--tongue:#ef8aa0;
+  --danger:#c0392b;--pp:#d6002f;--pp-bg:#fdeaee;--sat:#2f6fb5;--sun:#c0392b;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1714;--card:#26201c;--text:#f3ebe1;--sub:#b3a597;--line:#3a312a;
+    --head-bg:#3a2d22;--head-text:#f3e3c4;--date-bg:#4a3a2b;--date-text:#f3e3c4;
+    --accent:#b8d43a;--ball:#b8d43a;--ok:#b8d43a;--ok-bg:#33401a;
+    --maybe:#e0a84a;--maybe-bg:#3d301b;--no:#b0a69e;--no-bg:#332c27;
+    --primary:#ecd3a6;--on-primary:#2a211c;--tongue:#ff9fb3;
+    --danger:#e57368;--pp:#ff6b85;--pp-bg:#3d1c24;--sat:#7fb2ec;--sun:#f08a7e;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;color:var(--text);
+  background-color:var(--bg);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cg fill='%23efe1c8'%3E%3Cg transform='rotate(-18 40 40)'%3E%3Cellipse cx='40' cy='48' rx='10' ry='8'/%3E%3Cellipse cx='28' cy='35' rx='4.5' ry='5.5'/%3E%3Cellipse cx='36' cy='29' rx='4.5' ry='5.5'/%3E%3Cellipse cx='45' cy='29' rx='4.5' ry='5.5'/%3E%3Cellipse cx='53' cy='35' rx='4.5' ry='5.5'/%3E%3C/g%3E%3Cg transform='rotate(16 118 118)'%3E%3Cellipse cx='118' cy='126' rx='10' ry='8'/%3E%3Cellipse cx='106' cy='113' rx='4.5' ry='5.5'/%3E%3Cellipse cx='114' cy='107' rx='4.5' ry='5.5'/%3E%3Cellipse cx='123' cy='107' rx='4.5' ry='5.5'/%3E%3Cellipse cx='131' cy='113' rx='4.5' ry='5.5'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  font-family:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:16px;line-height:1.55;-webkit-tap-highlight-color:transparent}
+@media (prefers-color-scheme:dark){
+  body{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cg fill='%23251f1b'%3E%3Cg transform='rotate(-18 40 40)'%3E%3Cellipse cx='40' cy='48' rx='10' ry='8'/%3E%3Cellipse cx='28' cy='35' rx='4.5' ry='5.5'/%3E%3Cellipse cx='36' cy='29' rx='4.5' ry='5.5'/%3E%3Cellipse cx='45' cy='29' rx='4.5' ry='5.5'/%3E%3Cellipse cx='53' cy='35' rx='4.5' ry='5.5'/%3E%3C/g%3E%3Cg transform='rotate(16 118 118)'%3E%3Cellipse cx='118' cy='126' rx='10' ry='8'/%3E%3Cellipse cx='106' cy='113' rx='4.5' ry='5.5'/%3E%3Cellipse cx='114' cy='107' rx='4.5' ry='5.5'/%3E%3Cellipse cx='123' cy='107' rx='4.5' ry='5.5'/%3E%3Cellipse cx='131' cy='113' rx='4.5' ry='5.5'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+}
+
+/* ヘッダー */
+header{position:sticky;top:0;z-index:5;background:var(--head-bg);color:var(--head-text);
+  padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;
+  border-bottom-left-radius:22px;border-bottom-right-radius:22px;box-shadow:0 2px 0 rgba(59,47,42,.08)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{width:46px;height:46px;border-radius:50%;background:#fff;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(59,47,42,.18);flex:none}
+.team{font-size:20px;font-weight:800;letter-spacing:.08em;line-height:1.1}
+.app{font-size:12px;font-weight:700;opacity:.75}
+#me{font-size:12px;font-weight:700;background:rgba(255,255,255,.55);padding:4px 10px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+#me:empty{display:none}
+@media (prefers-color-scheme:dark){ #me{background:rgba(0,0,0,.25)} }
+
+nav{display:flex;gap:6px;max-width:640px;margin:12px auto 0;padding:0 16px}
+nav button{flex:1;padding:9px 4px;border:1.5px solid var(--line);border-radius:999px;background:var(--card);
+  font:inherit;font-size:14px;font-weight:700;color:var(--sub)}
+nav button.on{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+main{max-width:640px;margin:0 auto;padding:14px 16px 56px}
+.hint{font-size:13px;color:var(--sub);margin:0 0 12px;font-weight:500}
+
+/* カード */
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:20px;margin-bottom:16px;overflow:hidden;box-shadow:0 3px 0 var(--line)}
+.card-head{display:flex;gap:12px;align-items:center;padding:14px 16px;border-bottom:1.5px dashed var(--line)}
+.date{background:var(--date-bg);color:var(--date-text);border-radius:14px;padding:6px 8px;min-width:66px;text-align:center;line-height:1.15;flex:none}
+.date b{display:block;font-size:20px;font-weight:800}
+.date small{display:block;font-size:12px;font-weight:700;opacity:.8}
+.date small.sat{color:var(--sat);opacity:1}
+.date small.sun{color:var(--sun);opacity:1}
+.place{font-weight:800}
+.note{font-size:13px;color:var(--sub)}
+.del{border:0;background:none;color:var(--danger);font:inherit;font-size:13px;font-weight:700;margin-left:auto;padding:6px 0 6px 8px;flex:none}
+.slot{padding:14px 16px}
+.slot+.slot{border-top:1.5px dashed var(--line)}
+.slot-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:8px}
+.time{font-weight:800;font-size:17px}
+.fee{font-size:12px;font-weight:800;color:var(--head-text);background:var(--date-bg);padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:2px}
+.count{font-size:13px;color:var(--sub);white-space:nowrap;font-weight:700}
+.count.full{color:var(--danger)}
+
+/* ○△× ボタン */
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.st{padding:11px 0;border-radius:999px;border:2px solid var(--line);background:var(--card);
+  color:var(--text);font:inherit;font-size:15px;font-weight:800;transition:transform .08s}
+.st:active{transform:scale(.96)}
+.st[data-s="○"].on{background:var(--ok-bg);border-color:var(--ball);color:var(--ok)}
+.st[data-s="△"].on{background:var(--maybe-bg);border-color:var(--maybe);color:var(--maybe)}
+.st[data-s="×"].on{background:var(--no-bg);border-color:var(--no);color:var(--no)}
+.st:disabled{opacity:.4}
+.comment{margin-top:8px}
+.members{margin-top:12px;font-size:14px}
+.mrow{display:flex;gap:8px;padding:3px 0}
+.mk{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:1px}
+.mk.ok{background:var(--ok-bg);color:var(--ok)}
+.mk.maybe{background:var(--maybe-bg);color:var(--maybe)}
+.mk.no{background:var(--no-bg);color:var(--no)}
+.names .me{font-weight:800;text-decoration:underline;text-decoration-color:var(--tongue);text-decoration-thickness:3px;text-underline-offset:3px}
+.names .c{color:var(--sub);font-size:12px}
+
+/* 空・読み込み */
+.empty{color:var(--sub);text-align:center;padding:36px 16px;font-weight:700}
+.empty-pug{width:96px;height:96px;display:block;margin:0 auto 10px;opacity:.95}
+.loading{text-align:center;padding:48px 16px;color:var(--sub);font-weight:700}
+.ball{display:inline-block;width:30px;height:30px;border-radius:50%;position:relative;overflow:hidden;
+  background:radial-gradient(circle at 35% 30%,#e6f27a,var(--ball) 60%,#9fb92a);animation:bounce .6s ease-in-out infinite alternate}
+.ball::before,.ball::after{content:"";position:absolute;width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.85)}
+.ball::before{left:-19px;top:0}
+.ball::after{right:-19px;top:0}
+@keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-16px)}}
+
+/* 参加費の案内 */
+.fee-note{margin-top:8px;font-size:13px;font-weight:700;color:var(--sub)}
+.fee-note b{color:var(--text)}
+
+/* 登録フォーム */
+.pad{padding:16px}
+h2{font-size:17px;font-weight:800;margin:0 0 16px}
+.field{margin-bottom:18px}
+label{display:block;font-size:13px;font-weight:700;color:var(--sub);margin-bottom:6px}
+input{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);
+  color:var(--text);font:inherit;font-size:16px;min-width:0}
+.inline{display:flex;gap:8px}
+.sub-btn{flex:none;padding:10px 14px;border:2px solid var(--primary);border-radius:999px;background:none;
+  color:var(--primary);font:inherit;font-size:14px;font-weight:800}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{border:0;border-radius:999px;padding:5px 12px;background:var(--date-bg);color:var(--date-text);font:inherit;font-size:14px;font-weight:700}
+.slotrow{border:1.5px solid var(--line);border-radius:16px;padding:10px;margin-bottom:8px}
+.sr-time{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) 28px;gap:6px;align-items:center}
+.sr-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.sr-meta label{display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap}
+.sr-meta input{text-align:right;padding:8px 10px}
+.slotrow .x{border:0;background:none;color:var(--sub);font-size:20px;padding:0}
+.primary{width:100%;padding:14px;border:0;border-radius:999px;background:var(--primary);color:var(--on-primary);font:inherit;font-size:16px;font-weight:800;box-shadow:0 3px 0 rgba(0,0,0,.15)}
+.primary:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.15)}
+
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--primary);color:var(--on-primary);
+  padding:10px 18px;border-radius:999px;font-size:14px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;
+  width:max-content;max-width:88vw;text-align:center;z-index:10;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+#toast.show{opacity:1}
+.demo{background:var(--maybe-bg);color:var(--maybe);font-size:12px;font-weight:700;text-align:center;padding:6px}
+body.busy button{pointer-events:none}
+body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
+</style>
+</head>
+<body>
+<div id="demoBar" class="demo" hidden>デモモード（データはこの画面の中だけ）</div>
+<header>
+  <div class="brand">
+    <img class="logo" src="pug.png" alt="PUG">
+    <div><div class="team">PUG</div><div class="app">テニス練習 出欠</div></div>
+  </div>
+  <span id="me"></span>
+</header>
+<nav id="tabs" hidden>
+  <button data-tab="list" class="on">練習日</button>
+  <button data-tab="admin">練習日を登録</button>
+</nav>
+<main>
+  <section id="view-list">
+    <p class="hint">🎾 時間帯ごとに ○△× を選んでね。もう一度押すと取り消せます。</p>
+    <div id="events"><div class="loading"><span class="ball"></span><p>読み込み中…</p></div></div>
+  </section>
+
+  <section id="view-admin" hidden>
+    <div class="card pad">
+      <h2>練習日を登録</h2>
+      <div class="field">
+        <label>開催日（複数選べます）</label>
+        <div class="inline">
+          <input type="date" id="dateInput">
+          <button type="button" class="sub-btn" id="addDate">追加</button>
+        </div>
+        <div class="chips" id="dateChips"></div>
+      </div>
+      <div class="field">
+        <label>場所</label>
+        <input id="place" maxlength="50" placeholder="例：○○公園テニスコート 3番">
+      </div>
+      <div class="field">
+        <label>メモ（任意）</label>
+        <input id="note" maxlength="200" placeholder="例：ボールは各自持参">
+      </div>
+      <div class="field">
+        <label>時間枠（定員0は無制限。参加費は開始時刻から自動で入ります）</label>
+        <div id="slotRows"></div>
+        <button type="button" class="sub-btn" id="addSlot">＋ 時間枠を追加</button>
+      </div>
+      <button class="primary" id="submitEvents">登録する</button>
+      <p class="hint" style="margin-top:10px">選んだすべての日に、同じ時間枠で登録されます。</p>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+// ===== 設定（どちらも秘密情報ではありません） =====
+const CONFIG = {
+  LIFF_ID: 'YOUR_LIFF_ID',          // LINE DevelopersのLIFF ID
+  GAS_URL: 'YOUR_GAS_WEBAPP_URL',   // GASウェブアプリのURL（…/exec）
+};
+const params = new URLSearchParams(location.search);
+const DEMO = CONFIG.LIFF_ID.startsWith('YOUR_') || params.has('demo');
+const DEMO_ADMIN = params.get('demo') !== 'member'; // ?demo=member でメンバー表示
+
+// ===== 共通 =====
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const WD = ['日','月','火','水','木','金','土'];
+const fmtDate = d => {
+  const [y,m,dd] = d.split('-').map(Number);
+  const w = new Date(y,m-1,dd).getDay();
+  return `<b>${m}/${dd}</b><small class="${w === 0 ? 'sun' : w === 6 ? 'sat' : ''}">${WD[w]}曜</small>`;
+};
+const emptyHtml = msg => `<div class="empty"><img class="empty-pug" src="pug.png" alt="">${msg}</div>`;
+const fmtDateText = d => { const [y,m,dd] = d.split('-').map(Number); return `${m}/${dd}(${WD[new Date(y,m-1,dd).getDay()]})`; };
+const fmtTime = t => t.replace(/^0/, '');
+const yen = n => '¥' + Number(n || 0).toLocaleString('ja-JP');
+const localYmd = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+let state = { today: localYmd(), me: { name: '', isAdmin: false }, settings: { morningFee: 300, nightFee: 500, nightStart: '17:00' }, events: [] };
+let busy = false;
+let formReady = false;
+let currentTab = 'list';
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+async function api(action, payload = {}) {
+  if (DEMO) return demoApi(action, payload);
+  const res = await fetch(CONFIG.GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // プリフライト回避
+    body: JSON.stringify({ action, idToken: liff.getIDToken(), ...payload }),
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    if (data.error === 'auth') { relogin(); throw new Error('ログインし直しています…'); }
+    throw new Error(data.message || 'エラーが発生しました');
+  }
+  return data;
+}
+
+function relogin() {
+  if (liff.isInClient()) { location.reload(); return; }
+  liff.logout(); liff.login({ redirectUri: location.href });
+}
+
+async function run(fn, msg) {
+  if (busy) return false;
+  busy = true; document.body.classList.add('busy');
+  try { render(await fn()); if (msg) toast(msg); return true; }
+  catch (err) { toast(err.message); return false; }
+  finally { busy = false; document.body.classList.remove('busy'); }
+}
+
+function findSlot(id) {
+  for (const ev of state.events) for (const s of ev.slots) if (s.id === id) return s;
+}
+
+// ===== 描画 =====
+function render(data) {
+  state = data;
+  $('#me').textContent = data.me.name ? `${data.me.name} さん` : '';
+  $('#tabs').hidden = !data.me.isAdmin;
+  if (!data.me.isAdmin && currentTab !== 'list') switchTab('list');
+
+  const upcoming = data.events.filter(ev => ev.date >= data.today);
+  $('#events').innerHTML = upcoming.length
+    ? upcoming.map(cardHtml).join('')
+    : emptyHtml('練習日はまだないワン<br><small>決まったらここに出てきます</small>');
+
+  if (data.me.isAdmin && !formReady) { addSlotRow('09:00', '11:00', 0); formReady = true; }
+}
+
+function cardHtml(ev) {
+  return `<article class="card">
+    <div class="card-head">
+      <div class="date">${fmtDate(ev.date)}</div>
+      <div><div class="place">${esc(ev.place || '場所未定')}</div>${ev.note ? `<div class="note">${esc(ev.note)}</div>` : ''}</div>
+      ${state.me.isAdmin ? `<button class="del" data-del="${esc(ev.id)}" data-label="${esc(fmtDateText(ev.date))}">削除</button>` : ''}
+    </div>
+    ${ev.slots.length ? ev.slots.map(slotHtml).join('') : '<div class="slot note">時間枠がありません</div>'}
+  </article>`;
+}
+
+function slotHtml(s) {
+  const by = st => s.entries.filter(e => e.status === st);
+  const okN = by('○').length;
+  const full = s.capacity > 0 && okN >= s.capacity;
+  const count = s.capacity > 0 ? `参加 ${okN}/${s.capacity}${full ? '・満員' : ''}` : `参加 ${okN}人`;
+  const btn = (st, label) => {
+    const disabled = full && st === '○' && s.myStatus !== '○';
+    return `<button class="st${s.myStatus === st ? ' on' : ''}" data-slot="${esc(s.id)}" data-s="${st}"${disabled ? ' disabled' : ''}>${st} ${label}</button>`;
+  };
+  const rows = [['○','ok'], ['△','maybe'], ['×','no']].map(([st, cls]) => {
+    const list = by(st);
+    if (!list.length) return '';
+    const names = list.map(e =>
+      `<span class="${e.me ? 'me' : ''}">${esc(e.name)}</span>${e.comment ? `<span class="c">（${esc(e.comment)}）</span>` : ''}`
+    ).join('、');
+    return `<div class="mrow"><span class="mk ${cls}">${st}</span><span class="names">${names}</span></div>`;
+  }).join('');
+  return `<div class="slot">
+    <div class="slot-head"><span><span class="time">${fmtTime(s.start)}〜${fmtTime(s.end)}</span>${s.fee > 0 ? `<span class="fee">${yen(s.fee)}</span>` : ''}</span><span class="count${full ? ' full' : ''}">${count}</span></div>
+    <div class="btns">${btn('○','参加')}${btn('△','未定')}${btn('×','不参加')}</div>
+    ${s.myStatus === '○' && s.fee > 0 ? `<div class="fee-note">🎾 参加費 <b>${yen(s.fee)}</b> です</div>` : ''}
+    ${s.myStatus ? `<input class="comment" data-slot="${esc(s.id)}" maxlength="100" placeholder="ひとこと（任意）例：30分遅れます" value="${esc(s.myComment)}">` : ''}
+    <div class="members">${rows || '<span class="note">まだ回答はありません</span>'}</div>
+  </div>`;
+}
+
+// ===== 操作 =====
+document.addEventListener('click', async e => {
+  const st = e.target.closest('.st');
+  if (st) {
+    const s = findSlot(st.dataset.slot);
+    const next = s.myStatus === st.dataset.s ? '' : st.dataset.s;
+    await run(() => api('entry', { slotId: s.id, status: next, comment: next ? s.myComment : '' }),
+      next === '○' ? '参加ありがとうワン！🎾' : next ? '回答しました🐾' : '回答を取り消しました');
+    return;
+  }
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    if (!confirm(`${del.dataset.label} の練習日を削除しますか？\n回答もすべて消えます。`)) return;
+    await run(() => api('deleteEvent', { eventId: del.dataset.del }), '削除しました');
+    return;
+  }
+  const tab = e.target.closest('nav button');
+  if (tab) switchTab(tab.dataset.tab);
+});
+
+document.addEventListener('change', async e => {
+  if (!e.target.matches('input.comment')) return;
+  const s = findSlot(e.target.dataset.slot);
+  await run(() => api('entry', { slotId: s.id, status: s.myStatus, comment: e.target.value.trim() }), 'コメントを保存しました');
+});
+
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  $('#view-list').hidden = name !== 'list';
+  $('#view-admin').hidden = name !== 'admin';
+  window.scrollTo(0, 0);
+}
+
+// ===== 管理者：練習日の登録 =====
+const pickedDates = new Set();
+$('#dateInput').min = localYmd();
+
+function renderChips() {
+  $('#dateChips').innerHTML = [...pickedDates].sort()
+    .map(d => `<button type="button" class="chip" data-chip="${d}">${fmtDateText(d)} ×</button>`).join('');
+}
+$('#addDate').onclick = () => {
+  const v = $('#dateInput').value;
+  if (!v) return toast('日付を選んでください');
+  if (v < localYmd()) return toast('過去の日付は選べません');
+  pickedDates.add(v); renderChips();
+};
+$('#dateChips').onclick = e => {
+  const c = e.target.closest('[data-chip]'); if (!c) return;
+  pickedDates.delete(c.dataset.chip); renderChips();
+};
+
+const defaultFee = start => start && start >= (state.settings.nightStart || '17:00') ? state.settings.nightFee : state.settings.morningFee;
+
+function addSlotRow(start = '', end = '', cap = 0) {
+  const row = document.createElement('div');
+  row.className = 'slotrow';
+  row.innerHTML = `<div class="sr-time">
+      <input type="time" class="s" value="${start}" aria-label="開始"><span>〜</span>
+      <input type="time" class="e" value="${end}" aria-label="終了">
+      <button type="button" class="x" aria-label="この枠を削除">×</button>
+    </div>
+    <div class="sr-meta">
+      <label>定員<input type="number" class="c" value="${cap}" min="0" inputmode="numeric"></label>
+      <label>参加費 ¥<input type="number" class="f" value="${start ? defaultFee(start) : ''}" min="0" step="50" inputmode="numeric"></label>
+    </div>`;
+  const s = row.querySelector('.s'), f = row.querySelector('.f');
+  s.addEventListener('change', () => { if (f.dataset.manual !== '1') f.value = defaultFee(s.value); });
+  f.addEventListener('input', () => { f.dataset.manual = '1'; });
+  row.querySelector('.x').onclick = () => {
+    if ($('#slotRows').children.length > 1) row.remove(); else toast('時間枠は1つ以上必要です');
+  };
+  $('#slotRows').appendChild(row);
+}
+$('#addSlot').onclick = () => addSlotRow();
+
+$('#submitEvents').onclick = async () => {
+  const dates = [...pickedDates].sort();
+  const slots = [...document.querySelectorAll('.slotrow')].map(r => ({
+    start: r.querySelector('.s').value, end: r.querySelector('.e').value,
+    capacity: Number(r.querySelector('.c').value) || 0, fee: r.querySelector('.f').value,
+  }));
+  if (!dates.length) return toast('開催日を追加してください（日付を選んで「追加」）');
+  if (slots.some(s => !s.start || !s.end || s.start >= s.end)) return toast('時間枠の開始・終了を確認してください');
+  const ok = await run(() => api('createEvents', { dates, place: $('#place').value.trim(), note: $('#note').value.trim(), slots }),
+    `${dates.length}日分を登録しました`);
+  if (ok) { pickedDates.clear(); renderChips(); switchTab('list'); }
+};
+
+// ===== 起動 =====
+async function init() {
+  try {
+    if (DEMO) {
+      $('#demoBar').hidden = false;
+    } else {
+      await liff.init({ liffId: CONFIG.LIFF_ID });
+      if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+    }
+    render(await api('list'));
+  } catch (err) {
+    $('#events').innerHTML = emptyHtml(`うまく読み込めなかったワン…<br><small>${esc(err.message)}</small>`);
+  }
+}
+init();
+
+// ===== デモ用（LIFF_ID未設定 or ?demo で動作。本番では使われません） =====
+function demoApi(action, p) {
+  const db = window.__demo || (window.__demo = makeDemo());
+  const me = DEMO_ADMIN ? 'デモ管理者' : 'デモメンバー';
+  const reply = () => new Promise(r => setTimeout(() => r({
+    ok: true, today: localYmd(), me: { name: me, isAdmin: DEMO_ADMIN }, settings: db.settings, events: demoList(db),
+  }), 200));
+  const fail = msg => new Promise((_, j) => setTimeout(() => j(new Error(msg)), 200));
+
+  if (action === 'entry') {
+    const slot = db.slots.find(s => s.id === p.slotId);
+    const cur = db.entries.find(x => x.slotId === p.slotId && x.userId === 'me');
+    const others = db.entries.filter(x => x.slotId === p.slotId && x.userId !== 'me' && x.status === '○').length;
+    if (p.status === '○' && slot.capacity > 0 && others >= slot.capacity) return fail('この時間帯は定員に達しています');
+    if (!p.status) db.entries = db.entries.filter(x => x !== cur);
+    else if (cur) { cur.status = p.status; cur.comment = p.comment || ''; }
+    else db.entries.push({ slotId: p.slotId, userId: 'me', name: me, status: p.status, comment: p.comment || '', t: Date.now() });
+  } else if (action === 'createEvents') {
+    p.dates.forEach(d => {
+      const id = 'ev' + Math.random().toString(36).slice(2, 8);
+      db.events.push({ id, date: d, place: p.place, note: p.note });
+      p.slots.forEach(s => db.slots.push({ id: 'sl' + Math.random().toString(36).slice(2, 8), eventId: id,
+        start: s.start, end: s.end, capacity: s.capacity, fee: s.fee === '' ? defaultFee(s.start) : Number(s.fee) }));
+    });
+  } else if (action === 'deleteEvent') {
+    const ids = db.slots.filter(s => s.eventId === p.eventId).map(s => s.id);
+    db.entries = db.entries.filter(x => !ids.includes(x.slotId));
+    db.slots = db.slots.filter(s => s.eventId !== p.eventId);
+    db.events = db.events.filter(e => e.id !== p.eventId);
+  }
+  return reply();
+}
+function makeDemo() {
+  const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return localYmd(d); };
+  const db = {
+    settings: { morningFee: 300, nightFee: 500, nightStart: '17:00' },
+    events: [
+      { id: 'e1', date: day(3), place: '○○公園テニスコート 3番', note: 'ボールは各自持参' },
+      { id: 'e2', date: day(6), place: '△△運動公園', note: 'ナイターは照明代込み' },
+    ],
+    slots: [
+      { id: 's1', eventId: 'e1', start: '09:00', end: '11:00', capacity: 8, fee: 300 },
+      { id: 's2', eventId: 'e2', start: '09:00', end: '11:00', capacity: 4, fee: 300 },
+      { id: 's3', eventId: 'e2', start: '17:00', end: '19:00', capacity: 0, fee: 500 },
+      { id: 's4', eventId: 'e2', start: '19:00', end: '21:00', capacity: 0, fee: 500 },
+    ],
+    entries: [],
+  };
+  const add = (slotId, name, status, comment = '') => db.entries.push({ slotId, userId: name, name, status, comment, t: db.entries.length });
+  add('s1', 'たろう', '○'); add('s1', 'はなこ', '○'); add('s1', 'けん', '△', '仕事次第'); add('s1', 'みさき', '×');
+  add('s2', 'たろう', '○'); add('s2', 'ゆうと', '○'); add('s2', 'あおい', '○'); add('s2', 'みさき', '○');
+  add('s3', 'はなこ', '○', '30分遅れます'); add('s3', 'けん', '○'); add('s4', 'けん', '△');
+  return db;
+}
+function demoList(db) {
+  const today = localYmd();
+  return db.events.filter(ev => ev.date >= today).sort((a, b) => a.date.localeCompare(b.date)).map(ev => ({
+    ...ev,
+    slots: db.slots.filter(s => s.eventId === ev.id).sort((a, b) => a.start.localeCompare(b.start)).map(s => {
+      const es = db.entries.filter(x => x.slotId === s.id).sort((a, b) => a.t - b.t);
+      const m = es.find(x => x.userId === 'me');
+      return { id: s.id, start: s.start, end: s.end, capacity: s.capacity, fee: s.fee,
+        entries: es.map(x => ({ name: x.name, status: x.status, comment: x.comment, me: x.userId === 'me' })),
+        myStatus: m ? m.status : '', myComment: m ? m.comment : '' };
+    }),
+  }));
+}
+</script>
+</body>
+</html>

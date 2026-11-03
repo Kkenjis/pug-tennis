@@ -54,6 +54,11 @@ header{position:sticky;top:0;z-index:5;background:var(--head-bg);color:var(--hea
 .app{font-size:12px;font-weight:700;opacity:.75}
 #me{font-size:12px;font-weight:700;background:rgba(255,255,255,.55);padding:4px 10px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
 #me:empty{display:none}
+#saving{display:inline-flex;align-items:center;gap:5px;margin-left:auto;font-size:11px;font-weight:700;opacity:.75;white-space:nowrap}
+#saving .ball{width:12px;height:12px;animation-duration:.45s}
+#saving .ball::before,#saving .ball::after{width:12px;height:12px;border-width:1px}
+#saving .ball::before{left:-8px}
+#saving .ball::after{right:-8px}
 @media (prefers-color-scheme:dark){ #me{background:rgba(0,0,0,.25)} }
 
 nav{display:flex;gap:6px;max-width:640px;margin:12px auto 0;padding:0 16px}
@@ -171,6 +176,7 @@ body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
     <img class="logo" src="pug.png" alt="PUG">
     <div><div class="team">PUG</div><div class="app">テニス練習 出欠</div></div>
   </div>
+  <span id="saving" hidden aria-live="polite"><span class="ball"></span>保存中</span>
   <span id="me"></span>
 </header>
 <nav id="tabs" hidden>
@@ -224,6 +230,7 @@ body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
 const CONFIG = {
   LIFF_ID: '2012327263-i9eR8uhH',   // LINE DevelopersのLIFF ID（PUG 練習出欠）
   GAS_URL: 'https://script.google.com/macros/s/AKfycbwUuCVpdcn0RE0eYcxo0MVR7RcPi4hs7u4arnbnND7nRxyOLjwOxO_inwosTMsqCzKbJA/exec', // GASウェブアプリのURL
+  FAST_TAP: true, // ○△×を押した瞬間に表示を切り替え、保存は裏で行う（false にすると従来どおり保存完了を待つ）
 };
 const params = new URLSearchParams(location.search);
 // パソコンでファイルを直接開いたとき（file://）もデモ表示にする（LINEログインは登録したURLでしか使えないため）
@@ -341,6 +348,7 @@ function relogin() {
 
 async function run(fn, msg, mood = 'happy') {
   if (busy) return false;
+  if (pendingEntries) { toast('回答を保存中だワン…少し待ってほしいワン', 'oops'); return false; }
   busy = true; document.body.classList.add('busy');
   try { render(await fn()); if (msg) toast(msg, mood); return true; }
   catch (err) { toast(err.message, err.mood || 'sad'); return false; }
@@ -350,6 +358,50 @@ async function run(fn, msg, mood = 'happy') {
 function findSlot(id) {
   for (const ev of state.events) for (const s of ev.slots) if (s.id === id) return s;
 }
+
+// ===== ○△× の即時反映（CONFIG.FAST_TAP） =====
+// 押した瞬間に画面を切り替え、保存は裏で1件ずつ順番に送る（順番が入れ替わらないように）。
+// 全部送り終えたらサーバーの最新の一覧で描き直す。失敗があればサーバーから読み直して正しい状態に戻す。
+let entryQueue = Promise.resolve();
+let pendingEntries = 0;
+let latestData = null;
+let entryFailed = false;
+
+function applyLocalEntry(slotId, status, comment) {
+  const s = findSlot(slotId);
+  if (!s) return;
+  const others = s.entries.filter(x => !x.me);
+  s.myStatus = status;
+  s.myComment = status ? comment : '';
+  s.entries = status
+    ? [...others, { name: state.me.name, status, comment: s.myComment, me: true, guest: !state.me.isMember }]
+    : others;
+  render(state);
+}
+
+function saveEntryFast(slotId, status, comment, msg, mood) {
+  applyLocalEntry(slotId, status, comment);
+  if (msg) toast(msg, mood);
+  pendingEntries++;
+  $('#saving').hidden = false;
+  entryQueue = entryQueue
+    .then(() => api('entry', { slotId, status, comment }))
+    .then(data => { latestData = data; })
+    .catch(err => { entryFailed = true; toast(err.message, err.mood || 'sad'); })
+    .finally(async () => {
+      if (--pendingEntries > 0) return;
+      $('#saving').hidden = true;
+      if (entryFailed) {
+        entryFailed = false; latestData = null;
+        try { render(await api('list')); } catch (_) { /* 読み直せなくても次の操作で正しい状態になる */ }
+      } else if (latestData) {
+        render(latestData); latestData = null;
+      }
+    });
+}
+
+// 保存が終わる前に閉じようとしたら確認する
+window.addEventListener('beforeunload', e => { if (pendingEntries) { e.preventDefault(); e.returnValue = ''; } });
 
 // ===== 描画 =====
 function render(data) {
@@ -420,6 +472,7 @@ document.addEventListener('click', async e => {
       '×': ['また今度だワン！', 'sad'],
       '': ['回答を取り消したワン', 'oops'],
     }[next];
+    if (CONFIG.FAST_TAP) { saveEntryFast(s.id, next, next ? s.myComment : '', msg, mood); return; }
     await run(() => api('entry', { slotId: s.id, status: next, comment: next ? s.myComment : '' }), msg, mood);
     return;
   }
@@ -443,6 +496,7 @@ document.addEventListener('click', async e => {
 document.addEventListener('change', async e => {
   if (!e.target.matches('input.comment')) return;
   const s = findSlot(e.target.dataset.slot);
+  if (CONFIG.FAST_TAP) { saveEntryFast(s.id, s.myStatus, e.target.value.trim(), 'コメントを保存したワン！', 'happy'); return; }
   await run(() => api('entry', { slotId: s.id, status: s.myStatus, comment: e.target.value.trim() }), 'コメントを保存したワン！', 'happy');
 });
 

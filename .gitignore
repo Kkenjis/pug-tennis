@@ -1,0 +1,16 @@
+# 秘密情報・個人の設定はリポジトリに入れない（このリポジトリは公開）
+*recovery*
+*secret*
+*password*
+*.key
+*.pem
+.env
+.env.*
+.clasp.json
+.clasprc.json
+
+# OS・エディタの作業ファイル
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/

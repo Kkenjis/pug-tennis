@@ -47,7 +47,9 @@ function security() {
   check(/pugRelogin/.test(js), '再ログインの回数制限が残っている');
 
   const secretRe = /(channel[_ ]?secret\s*[:=]\s*['"][0-9a-f]{32}['"]|Bearer\s+[A-Za-z0-9._-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[0-9A-Za-z]{36})/i;
-  const docs = fs.existsSync('docs') ? fs.readdirSync('docs').filter(f => f.endsWith('.md')).map(f => 'docs/' + f) : [];
+  const mdUnder = dir => fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+    d.isDirectory() ? mdUnder(dir + '/' + d.name) : d.name.endsWith('.md') ? [dir + '/' + d.name] : []) : [];
+  const docs = mdUnder('docs');
   ['index.html', 'README.md', 'gas/Code.gs', ...docs].filter(f => fs.existsSync(f)).forEach(f => {
     check(!secretRe.test(fs.readFileSync(f, 'utf8')), f + ' に秘密情報らしき文字列がない');
   });

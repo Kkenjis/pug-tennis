@@ -13,6 +13,7 @@
 | --- | --- |
 | [仕組みの全体像](docs/ARCHITECTURE.md) | システム構成図、ログインとデータの流れ、データモデル、権限、API、セキュリティ対策、監視、リリースの流れ |
 | [レビュー依頼ガイド](docs/REVIEW_GUIDE.md) | 外部のエンジニアにレビューしてもらうときの観点・動かし方・指摘の伝え方 |
+| [開発の経緯](docs/history/README.md) | 当初の要件、最初の試作、主な変更の流れ |
 
 ## ファイル構成
 
@@ -25,7 +26,8 @@
 | `.github/workflows/review-gate.yml` | 自動チェックと目視チェックを GitHub Actions で実行 |
 | `.github/pull_request_template.md` | プルリクエストの目視チェックリスト |
 | `.github/ISSUE_TEMPLATE/review-finding.md` | レビュー指摘を報告する Issue のひな形 |
-| `docs/` | 仕組みの全体像とレビュー依頼ガイド |
+| `docs/` | 仕組みの全体像、レビュー依頼ガイド、開発の経緯（`docs/history/`） |
+| `.gitignore` | 秘密情報や個人設定のファイルをリポジトリに入れないための除外設定 |
 
 ## 主な機能
 

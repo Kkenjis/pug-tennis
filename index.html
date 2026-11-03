@@ -382,10 +382,23 @@ function applyLocalEntry(slotId, status, comment) {
 function saveEntryFast(slotId, status, comment, msg, mood) {
   applyLocalEntry(slotId, status, comment);
   if (msg) toast(msg, mood);
+  queueSave('entry', { slotId, status, comment });
+}
+
+// 管理者の「ゲストへの公開」切り替えも、押した瞬間に表示を変えて裏で保存する
+function saveGuestOpenFast(eventId, open, msg, mood) {
+  const ev = state.events.find(x => x.id === eventId);
+  if (ev) { ev.guestOpen = open; render(state); }
+  if (msg) toast(msg, mood);
+  queueSave('setGuestOpen', { eventId, open });
+}
+
+// 保存の待ち行列（1件ずつ順番に送る）。全部終わったらサーバーの一覧で描き直し、失敗があれば読み直す
+function queueSave(action, payload) {
   pendingEntries++;
   $('#saving').hidden = false;
   entryQueue = entryQueue
-    .then(() => api('entry', { slotId, status, comment }))
+    .then(() => api(action, payload))
     .then(data => { latestData = data; })
     .catch(err => { entryFailed = true; toast(err.message, err.mood || 'sad'); })
     .finally(async () => {
@@ -479,6 +492,10 @@ document.addEventListener('click', async e => {
   const gt = e.target.closest('[data-guest]');
   if (gt) {
     const open = gt.dataset.open === '1';
+    if (CONFIG.FAST_TAP) {
+      saveGuestOpenFast(gt.dataset.guest, open, open ? 'ゲストにも公開したワン！' : 'メンバー限定に戻したワン', open ? 'happy' : 'ok');
+      return;
+    }
     await run(() => api('setGuestOpen', { eventId: gt.dataset.guest, open }),
       open ? 'ゲストにも公開したワン！' : 'メンバー限定に戻したワン', open ? 'happy' : 'ok');
     return;

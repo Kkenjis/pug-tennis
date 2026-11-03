@@ -40,7 +40,7 @@ node scripts/review-gate.js security   # 自動セキュリティチェック（
 - [ ] ID トークンの扱い：`CONFIG.GAS_URL` 以外に送られていないか、ログや URL に出ていないか
 - [ ] 再ログインの制御（`relogin()`）に無限ループや想定外の遷移はないか
 - [ ] デモモードの判定（`?demo`・`file://`）が本番の動作に影響しないか
-- [ ] 即時反映（`CONFIG.FAST_TAP` / `saveEntryFast`）：連打しても保存の順番が入れ替わらないか、失敗時に正しい状態へ戻るか
+- [ ] 即時反映（`CONFIG.FAST_TAP` / `saveEntryFast` / `saveGuestOpenFast` / `queueSave`）：連打しても保存の順番が入れ替わらないか、失敗時に正しい状態へ戻るか
 
 ### サーバーの堅牢性（`gas/Code.gs`）
 

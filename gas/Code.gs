@@ -71,6 +71,7 @@ function setup() {
 
   const blank = ss.getSheetByName('シート1');
   if (blank && blank.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(blank);
+  invalidate_.apply(null, CACHED_SHEETS);
 }
 
 // ===== エントリーポイント =====
@@ -175,15 +176,26 @@ function verifyIdToken_(idToken) {
 
 // ===== ユーザー（初回アクセスで自動登録・管理者判定） =====
 function touchUser_(user) {
-  const sh = sheet_('users');
   const today = today_();
-  const found = readRows_('users').find(r => str_(r.v[0]) === user.userId);
+  // まずはキャッシュから探す（名前の変更や今日初めてのアクセスがなければ、シートは開かない）
+  const found = readRowsCached_('users').find(r => str_(r.v[0]) === user.userId);
   if (found) {
-    if (cellText_(found.v[1]) !== user.name) sh.getRange(found.row, 2).setValue(safeCell_(user.name));
-    if (str_(found.v[2]).slice(0, 10) !== today) sh.getRange(found.row, 3).setValue(now_());
+    const rename = cellText_(found.v[1]) !== user.name;
+    const firstToday = str_(found.v[2]).slice(0, 10) !== today;
+    if (rename || firstToday) {
+      // 書き込むときは行番号がずれないよう、シートから読み直す
+      const fresh = readRows_('users').find(r => str_(r.v[0]) === user.userId);
+      if (fresh) {
+        const sh = sheet_('users');
+        if (rename) sh.getRange(fresh.row, 2).setValue(safeCell_(user.name));
+        if (firstToday) sh.getRange(fresh.row, 3).setValue(now_());
+        invalidate_('users');
+      }
+    }
     const isAdmin = isTrue_(found.v[3]);
     return { isAdmin, isMember: isAdmin || str_(found.v[4]) === MEMBER, isNew: false };
   }
+  const sh = sheet_('users');
   // 初めての人はゲストとして登録（管理者がメンバーに切り替える）
   let created = false;
   withLock_(() => {
@@ -194,13 +206,14 @@ function touchUser_(user) {
     sh.getRange(row, 5).setValue(GUEST);
     created = true;
   });
+  invalidate_('users');
   return { isAdmin: false, isMember: false, isNew: created };
 }
 
 // ===== 設定（参加費） =====
 function readSettings_() {
   const m = {};
-  readRows_('settings').forEach(({ v }) => { m[str_(v[0])] = str_(v[1]); });
+  readRowsCached_('settings').forEach(({ v }) => { m[str_(v[0])] = str_(v[1]); });
   const num = (k, d) => { const n = parseInt(m[k], 10); return isNaN(n) ? d : clamp_(n, 0, LIMITS.fee); };
   return {
     morningFee: num('朝の参加費', 300),
@@ -225,17 +238,17 @@ function parseFee_(v, start, st) {
 function listEvents_(userId, settings, isMember) {
   const today = today_();
   const people = {};
-  readRows_('users').forEach(r => {
+  readRowsCached_('users').forEach(r => {
     people[str_(r.v[0])] = { name: cellText_(r.v[1]), guest: !isTrue_(r.v[3]) && str_(r.v[4]) !== MEMBER };
   });
 
   // メンバーは全日程、ゲストは「ゲスト公開」の日だけ
-  const events = readRows_('events')
+  const events = readRowsCached_('events')
     .map(({ v }) => ({ id: str_(v[0]), date: fmtDate_(v[1]), place: cellText_(v[2]), note: cellText_(v[3]), guestOpen: isTrue_(v[5]) }))
     .filter(ev => ev.id && ev.date && ev.date >= today && (isMember || ev.guestOpen))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const slots = readRows_('slots').map(({ v }) => {
+  const slots = readRowsCached_('slots').map(({ v }) => {
     const start = fmtTime_(v[2]);
     return {
       id: str_(v[0]), eventId: str_(v[1]), start, end: fmtTime_(v[3]),
@@ -244,7 +257,7 @@ function listEvents_(userId, settings, isMember) {
     };
   });
 
-  const entries = readRows_('entries').map(({ v }) => {
+  const entries = readRowsCached_('entries').map(({ v }) => {
     const p = people[str_(v[1])];
     return {
       slotId: str_(v[0]), userId: str_(v[1]), name: (p && p.name) || cellText_(v[2]), guest: !!(p && p.guest),
@@ -299,6 +312,7 @@ function saveEntry_(user, req, isMember) {
   const sh = sheet_('entries');
   if (!status) {
     if (mine) sh.deleteRow(mine.row);
+    invalidate_('entries');
     return;
   }
   const values = [[slotId, user.userId, safeCell_(user.name), status, safeCell_(comment), now_()]];
@@ -307,6 +321,7 @@ function saveEntry_(user, req, isMember) {
   } else {
     appendRows_('entries', values);
   }
+  invalidate_('entries');
 }
 
 // ===== 管理者：複数開催日の一括登録 =====
@@ -349,6 +364,7 @@ function createEvents_(req) {
   guestCells.insertCheckboxes();
   if (req.guestOpen === true) guestCells.setValue(true);
   appendRows_('slots', slRows);
+  invalidate_('events', 'slots');
 }
 
 // ===== 管理者：ゲスト公開の切り替え =====
@@ -358,6 +374,7 @@ function setGuestOpen_(eventId, open) {
   const cell = sheet_('events').getRange(row.row, 6);
   if (!cell.getDataValidation()) cell.insertCheckboxes();
   cell.setValue(open);
+  invalidate_('events');
 }
 
 // ===== 管理者：開催日の削除（時間枠・回答もまとめて） =====
@@ -367,6 +384,7 @@ function deleteEvent_(eventId) {
   deleteRowsWhere_('entries', r => slotIds.includes(str_(r.v[0])));
   deleteRowsWhere_('slots', r => str_(r.v[1]) === eventId);
   deleteRowsWhere_('events', r => str_(r.v[0]) === eventId);
+  invalidate_('entries', 'slots', 'events');
 }
 
 // ===== 監視：操作ログ =====
@@ -491,11 +509,20 @@ function logTime_(v) {
 // 監視の自動実行を設定する（一度だけ実行。メール送信とトリガーの権限承認が必要）
 function installTriggers() {
   ScriptApp.getProjectTriggers()
-    .filter(t => t.getHandlerFunction() === 'dailyReport')
+    .filter(t => ['dailyReport', 'onSheetEdit'].includes(t.getHandlerFunction()))
     .forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('dailyReport').timeBased().everyDays(1).atHour(8).inTimezone(TZ).create();
+  // スプレッドシートを手で編集したら、読み込みキャッシュをすぐ捨てる（ゲスト→メンバーの切り替えなどを即反映）
+  ScriptApp.newTrigger('onSheetEdit').forSpreadsheet(SPREADSHEET_ID).onEdit().create();
+  ScriptApp.newTrigger('onSheetEdit').forSpreadsheet(SPREADSHEET_ID).onChange().create();
   MailApp.sendEmail(reportTo_(), '[PUG出欠] 監視の設定が完了しました',
-    '毎朝8時台に日次レポートが届きます。権限のない操作やログイン失敗の急増があれば、その都度お知らせします。');
+    '毎朝8時台に日次レポートが届きます。権限のない操作やログイン失敗の急増があれば、その都度お知らせします。\n' +
+    'スプレッドシートを手で編集したときは、アプリの表示にすぐ反映されます。');
+}
+
+// スプレッドシートの手動編集（値の変更・行の追加削除）で呼ばれる。キャッシュを捨てるだけで、データには触らない
+function onSheetEdit() {
+  invalidate_.apply(null, CACHED_SHEETS);
 }
 
 // ===== シート操作ヘルパー =====
@@ -513,6 +540,52 @@ function readRows_(key) {
     .map((v, i) => ({ row: i + 2, v }))
     .filter(r => str_(r.v[0]) !== '');
 }
+
+// ===== 読み込みキャッシュ（開くたびにシートを読み直さない） =====
+// 一覧の表示に使うシートを最大 READ_CACHE_SEC 秒だけ Apps Script のキャッシュに置く。
+// 書き込んだシートはその場でキャッシュを捨てる（世代番号を進める）ので、自分の操作はすぐ反映される。
+// スプレッドシートを手で直接編集した場合（ゲスト→メンバーの切り替えなど）は、最大 READ_CACHE_SEC 秒で反映される。
+// 書き込み処理（行番号が必要なもの）は、必ず readRows_ でシートから読み直す。
+const READ_CACHE_SEC = 60;
+const CACHED_SHEETS = ['events', 'slots', 'entries', 'users', 'settings'];
+const CACHE_MAX_BYTES = 95000; // CacheService の1件あたりの上限（100KB）未満
+
+function readRowsCached_(key) {
+  const cache = CacheService.getScriptCache();
+  const gen = cache.get('gen_' + key) || '0';
+  const hit = cache.get('rows_' + key);
+  if (hit) {
+    try {
+      const x = JSON.parse(hit);
+      if (x.gen === gen) return x.rows.map(r => ({ row: r.row, v: r.v.map(reviveCell_) }));
+    } catch (_) { /* 壊れていたら読み直す */ }
+  }
+  const rows = readRows_(key);
+  try {
+    const json = JSON.stringify({ gen, rows: rows.map(r => ({ row: r.row, v: r.v.map(packCell_) })) });
+    if (Utilities.newBlob(json).getBytes().length < CACHE_MAX_BYTES) cache.put('rows_' + key, json, READ_CACHE_SEC);
+  } catch (_) { /* キャッシュできなくても動作は同じ */ }
+  return rows;
+}
+
+// 書き込んだシートのキャッシュを無効にする。読み込み途中だった別の処理が古い内容を置いても、世代が違うので使われない
+function invalidate_() {
+  const keys = Array.prototype.slice.call(arguments);
+  try {
+    const cache = CacheService.getScriptCache();
+    const gen = String(Date.now()) + Math.random().toString(36).slice(2, 6);
+    const put = {};
+    keys.forEach(k => { put['gen_' + k] = gen; });
+    cache.putAll(put, 21600);
+    cache.removeAll(keys.map(k => 'rows_' + k));
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// 日付型のセルはそのまま JSON にできないので、時刻の数値に包んで保存し、読み出し時に Date に戻す
+function packCell_(c) { return c instanceof Date ? { $d: c.getTime() } : c; }
+function reviveCell_(c) { return c && typeof c === 'object' && '$d' in c ? new Date(c.$d) : c; }
 
 function appendRows_(key, rows) {
   if (!rows.length) return;

@@ -1,0 +1,51 @@
+name: claude-reply
+
+# Issue に「@claude」があると、Claude が内容を読んでコメントで返信する
+#   ・起動できるのは書き込み権限のある人（持ち主・共同編集者）だけ
+#   ・できるのは「リポジトリを読む」「Issue にコメントする」だけ。コードの変更・プッシュはできない
+#   ・変更は今までどおり、人がプルリクエストを作り、チェックを通してからマージする
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: claude-reply-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  reply:
+    # Issue だけが対象（プルリクエストへのコメントでは動かない）
+    if: >-
+      !github.event.issue.pull_request && (
+        (github.event_name == 'issues' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) &&
+          (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+        (github.event_name == 'issue_comment' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+          contains(github.event.comment.body, '@claude'))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read   # 読むだけ
+      issues: write    # コメントするため
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: anthropics/claude-code-action@aa8a7738e48bf30a40ee499ce818bef081c5ab5e # v1.0.257
+        with:
+          # 鍵は GitHub の Secrets に保存（リポジトリには書かない）
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Claude の GitHub アプリではなく、このジョブ専用の権限（上の permissions）だけを持つトークンを使う
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 公開リポジトリのため、Claude に渡すコメントはチームの人のものだけにする（担当が増えたら追加）
+          include_comments_by_actor: "Kkenjis,TairaYuno"
+          claude_args: |
+            --max-turns 15
+            --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files"

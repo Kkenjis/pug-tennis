@@ -176,7 +176,7 @@ body.busy .st,body.busy .pbtn,body.busy .chk,body.busy .primary{opacity:.6}
     <img class="logo" src="pug.png" alt="PUG">
     <div><div class="team">PUG</div><div class="app">テニス練習 出欠</div></div>
   </div>
-  <span id="saving" hidden aria-live="polite"><span class="ball"></span>保存中</span>
+  <span id="saving" hidden aria-live="polite"><span class="ball"></span><span id="savingText">保存中</span></span>
   <span id="me"></span>
 </header>
 <nav id="tabs" hidden>
@@ -231,6 +231,7 @@ const CONFIG = {
   LIFF_ID: '2012327263-i9eR8uhH',   // LINE DevelopersのLIFF ID（PUG 練習出欠）
   GAS_URL: 'https://script.google.com/macros/s/AKfycbwUuCVpdcn0RE0eYcxo0MVR7RcPi4hs7u4arnbnND7nRxyOLjwOxO_inwosTMsqCzKbJA/exec', // GASウェブアプリのURL
   FAST_TAP: true, // ○△×を押した瞬間に表示を切り替え、保存は裏で行う（false にすると従来どおり保存完了を待つ）
+  SHOW_LAST: true, // 開いた瞬間に前回の一覧を表示し、最新の内容は裏で読み込む（false で毎回読み込みを待つ）
 };
 const params = new URLSearchParams(location.search);
 // パソコンでファイルを直接開いたとき（file://）もデモ表示にする（LINEログインは登録したURLでしか使えないため）
@@ -333,6 +334,7 @@ async function api(action, payload = {}) {
     throw pugError(errText(data), data.error === 'bad_request' ? 'oops' : 'sad');
   }
   try { sessionStorage.removeItem('pugRelogin'); } catch (_) {}
+  if (data.events) saveLastView(data);
   return data;
 }
 
@@ -396,6 +398,7 @@ function saveGuestOpenFast(eventId, open, msg, mood) {
 // 保存の待ち行列（1件ずつ順番に送る）。全部終わったらサーバーの一覧で描き直し、失敗があれば読み直す
 function queueSave(action, payload) {
   pendingEntries++;
+  $('#savingText').textContent = '保存中';
   $('#saving').hidden = false;
   entryQueue = entryQueue
     .then(() => api(action, payload))
@@ -583,17 +586,57 @@ $('#submitEvents').onclick = async () => {
 };
 
 // ===== 起動 =====
+// ===== 前回の表示をすぐ出す（CONFIG.SHOW_LAST） =====
+// 一覧はこの端末の localStorage に保存し、次に開いたときはまずそれを表示してから最新の内容に差し替える。
+// 保存するのは画面に出ている内容だけ（名前・出欠・コメント）。別のLINEアカウントの保存分は使わない。
+const LAST_KEY = 'pugLastView';
+const LAST_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7日より古い保存分は使わない
+function loginSub() {
+  try { return (liff.getDecodedIDToken() || {}).sub || ''; } catch (_) { return ''; }
+}
+function saveLastView(data) {
+  if (DEMO || !CONFIG.SHOW_LAST) return;
+  const sub = loginSub();
+  if (!sub) return;
+  try { localStorage.setItem(LAST_KEY, JSON.stringify({ sub, at: Date.now(), data })); } catch (_) {}
+}
+function loadLastView() {
+  if (DEMO || !CONFIG.SHOW_LAST) return null;
+  try {
+    const x = JSON.parse(localStorage.getItem(LAST_KEY) || 'null');
+    if (!x || !x.data || !Array.isArray(x.data.events) || Date.now() - x.at > LAST_MAX_AGE) return null;
+    return x;
+  } catch (_) { return null; }
+}
+function clearLastView() { try { localStorage.removeItem(LAST_KEY); } catch (_) {} }
+function showRefreshing(on) {
+  if (on) { $('#savingText').textContent = '更新中'; $('#saving').hidden = false; }
+  else if (!pendingEntries) $('#saving').hidden = true;
+}
+
 async function init() {
+  let shownLast = false;
   try {
     if (DEMO) {
       $('#demoBar').hidden = false;
     } else {
+      const last = loadLastView();
+      if (last) { render({ ...last.data, today: localYmd() }); shownLast = true; showRefreshing(true); }
       await liff.init({ liffId: CONFIG.LIFF_ID });
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+      // 別のLINEアカウントで保存された表示だったら消して、読み込み中に戻す
+      if (last && last.sub !== loginSub()) {
+        clearLastView(); shownLast = false; showRefreshing(false);
+        $('#events').innerHTML = '<div class="loading"><span class="ball"></span><p>読み込み中だワン…</p></div>';
+      }
     }
-    render(await api('list'));
+    const fresh = await api('list');
+    if (!pendingEntries) render(fresh); // 表示中に○△×が押されていたら、保存後の最新の一覧に任せる
   } catch (err) {
-    $('#events').innerHTML = emptyHtml(`うまく読み込めなかったワン…${pugFace('sad')}<br><small>${esc(err.message)}</small>`);
+    if (shownLast) toast(err.message, err.mood || 'sad'); // 前回の表示はそのまま残す
+    else $('#events').innerHTML = emptyHtml(`うまく読み込めなかったワン…${pugFace('sad')}<br><small>${esc(err.message)}</small>`);
+  } finally {
+    if (shownLast) showRefreshing(false);
   }
 }
 init();

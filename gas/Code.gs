@@ -13,6 +13,9 @@ const LINE_CHANNEL_ID = '2012327263'; // PUG 練習出欠（LINEログインチ�
 const SPREADSHEET_ID = '1Lh9l6DW1c2YRP4In2J7ZR9OyTKi6bNAHhL1jwCSGGGY'; // スプレッドシート「PUG 練習出欠」
 const TZ = 'Asia/Tokyo';
 const REPORT_TO = '';        // 通知の送り先（カンマ区切り）。空欄なら実行アカウント（チーム用アカウント）
+// 新しい人が来たときの通知先は、スクリプト プロパティ NEW_USER_NOTIFY_TO に保存する（公開リポジトリにアドレスを書かない）。未設定なら REPORT_TO と同じ
+const NEW_USER_NOTIFY_PROP = 'NEW_USER_NOTIFY_TO';
+const NEW_USER_NOTIFY_MAX = 20; // 1日に送る上限（大量登録でメールの送信枠を使い切らないため）
 const LOG_KEEP_DAYS = 90;    // 操作ログの保存日数
 const LIMITS = { dates: 62, slots: 10, capacity: 999, fee: 100000, name: 50, comment: 100, place: 50, note: 200 };
 
@@ -207,6 +210,7 @@ function touchUser_(user) {
     created = true;
   });
   invalidate_('users');
+  if (created) notifyNewUser_(user.name);
   return { isAdmin: false, isMember: false, isNew: created };
 }
 
@@ -438,6 +442,33 @@ function alert_(key, subject, body) {
 
 function reportTo_() {
   return REPORT_TO || Session.getEffectiveUser().getEmail();
+}
+
+// ===== 通知：新しい人が来たとき（その場で1通。userId は書かない） =====
+function notifyNewUser_(name) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const key = 'newuser_' + today_();
+    const n = Number(cache.get(key) || 0);
+    if (n >= NEW_USER_NOTIFY_MAX) return; // 上限を超えた分は翌朝の日次レポートで確認できる
+    cache.put(key, String(n + 1), 21600);
+    const who = String(name).replace(/[\r\n]+/g, ' ');
+    MailApp.sendEmail(newUserNotifyTo_(), '[PUG出欠] 新しい方が来ました：' + who, [
+      who + ' さんが初めてアプリを開きました（' + now_() + '）。',
+      'いまは「ゲスト」として登録されています。',
+      '',
+      'チームのメンバーなら、スプレッドシートの「ユーザー」シートで、この方の「区分」を「メンバー」に変えてください。',
+      'ゲストの方なら、このままで大丈夫です。',
+      '',
+      'スプレッドシート: https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID,
+    ].join('\n'));
+  } catch (err) {
+    console.error(err); // 通知に失敗しても、ログインは止めない
+  }
+}
+
+function newUserNotifyTo_() {
+  return str_(PropertiesService.getScriptProperties().getProperty(NEW_USER_NOTIFY_PROP)) || reportTo_();
 }
 
 // ===== 監視：日次レポート（毎朝8時台に自動実行） =====

@@ -31,6 +31,7 @@
 | `docs/BACKLOG.md` | 要望と決定事項のメモ。**まずここ**。過去に見送った案を、理由なく再提案しない |
 | `docs/ARCHITECTURE.md` | 仕組みの全体像（構成、ログイン、データ、権限、API、セキュリティ、既知の制約） |
 | `docs/OPERATIONS.md` | 体制・権限・本番に出すルール |
+| `docs/ISSUE_GUIDE.md` | チームが Issue であなたと話すときのルール（返信もこれに沿う） |
 | `docs/REVIEW_GUIDE.md` | レビューの観点 |
 | `index.html` / `gas/Code.gs` | 画面 / API（どちらも 1 ファイル、ライブラリなし） |
 

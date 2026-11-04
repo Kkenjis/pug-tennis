@@ -41,11 +41,13 @@ node scripts/review-gate.js security   # 自動セキュリティチェック（
 - [ ] 再ログインの制御（`relogin()`）に無限ループや想定外の遷移はないか
 - [ ] デモモードの判定（`?demo`・`file://`）が本番の動作に影響しないか
 - [ ] 即時反映（`CONFIG.FAST_TAP` / `saveEntryFast` / `saveGuestOpenFast` / `queueSave`）：連打しても保存の順番が入れ替わらないか、失敗時に正しい状態へ戻るか
+- [ ] 前回の表示（`CONFIG.SHOW_LAST` / `saveLastView` / `loadLastView`）：別の LINE アカウントの保存分が表示されないか、保存する内容に問題はないか
 
 ### サーバーの堅牢性（`gas/Code.gs`）
 
 - [ ] 数式インジェクション対策（`safeCell_`）の漏れ：シートへ書き込むすべての利用者由来の値に効いているか
 - [ ] 入力上限（`LIMITS`）と、不正な型（配列・オブジェクト・巨大な文字列）への耐性
+- [ ] 読み込みキャッシュ（`readRowsCached_` / `invalidate_` / `onSheetEdit`）：書き込みや手動編集のあとに古い内容（特に管理者・メンバーの区分）が残らないか
 - [ ] 大量アクセス時の挙動（検証 API の回数上限、Apps Script の同時実行数、`LockService` のタイムアウト）
 - [ ] エラー応答や操作ログから、内部情報や個人情報（userId など）が漏れていないか
 

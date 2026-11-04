@@ -50,7 +50,7 @@ function security() {
   const mdUnder = dir => fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap(d =>
     d.isDirectory() ? mdUnder(dir + '/' + d.name) : d.name.endsWith('.md') ? [dir + '/' + d.name] : []) : [];
   const docs = mdUnder('docs');
-  ['index.html', 'README.md', 'gas/Code.gs', ...docs].filter(f => fs.existsSync(f)).forEach(f => {
+  ['index.html', 'README.md', 'CLAUDE.md', 'gas/Code.gs', ...docs].filter(f => fs.existsSync(f)).forEach(f => {
     check(!secretRe.test(fs.readFileSync(f, 'utf8')), f + ' に秘密情報らしき文字列がない');
   });
 

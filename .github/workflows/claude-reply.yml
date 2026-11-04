@@ -33,12 +33,37 @@ jobs:
     permissions:
       contents: read   # 読むだけ
       issues: write    # コメントするため
+      actions: read    # 今日の返信回数を数えるため
+    env:
+      # 返信の上限（チーム全体・日本時間 0 時にリセット）。メイン開発者の Claude Pro の利用枠を守るため
+      DAILY_LIMIT: 10
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: 今日の返信回数を確認
+        id: quota
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          since=$(date -u -d "$(TZ=Asia/Tokyo date +%F) 00:00 +0900" +%Y-%m-%dT%H:%M:%SZ)
+          # 実際に動いた回（成功・失敗・実行中）を数える。条件に合わず動かなかった回（skipped）は数えない。この回も含む
+          used=$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/workflows/claude-reply.yml/runs" \
+            -f created=">=${since}" -f per_page=100 \
+            --jq '[.workflow_runs[] | select(.status != "completed" or .conclusion == "success" or .conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out")] | length')
+          echo "今日の返信（この回を含む）: ${used} / 上限 ${DAILY_LIMIT}"
+          if [ "${used}" -gt "${DAILY_LIMIT}" ]; then echo "over=true" >> "$GITHUB_OUTPUT"; else echo "over=false" >> "$GITHUB_OUTPUT"; fi
+      - name: 上限に達したことを知らせる
+        if: steps.quota.outputs.over == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "${ISSUE_NUMBER}" --repo "${GITHUB_REPOSITORY}" --body "本日の自動返信の上限（${DAILY_LIMIT} 回）に達したため、返信しませんでした。日本時間の 0 時以降に、もう一度 \`@claude\` を入れてコメントしてください。急ぎの場合はメイン開発者に連絡してください。"
+      - if: steps.quota.outputs.over != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: anthropics/claude-code-action@aa8a7738e48bf30a40ee499ce818bef081c5ab5e # v1.0.257
+      - if: steps.quota.outputs.over != 'true'
+        uses: anthropics/claude-code-action@aa8a7738e48bf30a40ee499ce818bef081c5ab5e # v1.0.257
         with:
           # 鍵は GitHub の Secrets に保存（リポジトリには書かない）
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -47,5 +72,5 @@ jobs:
           # 公開リポジトリのため、Claude に渡すコメントはチームの人のものだけにする（担当が増えたら追加）
           include_comments_by_actor: "Kkenjis,TairaYuno"
           claude_args: |
-            --max-turns 15
+            --max-turns 10
             --disallowedTools "Bash,Edit,Write,MultiEdit,NotebookEdit,WebFetch,mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files"

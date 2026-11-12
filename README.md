@@ -23,6 +23,7 @@
 | ファイル | 役割 |
 | --- | --- |
 | `index.html` | 画面。`CONFIG.LIFF_ID` と `CONFIG.GAS_URL` を設定 |
+| `preview/index.html` | 新デザインのお試し版（本番の画面のコピーに、ホームと予定の新しい見た目を当てたもの）。本番と同じデータにつながる。`?demo` でデータなしの確認もできる |
 | `pug.png` / `pug-touch.png` | チームアイコン（画面用／ホーム画面用） |
 | `gas/Code.gs` | Apps Script のコード（レビュー用の原本。本番への反映はチーム用アカウントで行う） |
 | `scripts/review-gate.js` | リリース前の自動チェック |

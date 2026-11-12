@@ -147,6 +147,13 @@ main{padding:4px 16px 8px}
 input{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--soft);
   color:var(--text);font:inherit;font-size:16px;min-width:0}
 .comment{margin-top:8px}
+.gcount{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;border-radius:12px;background:var(--soft)}
+.gcount .lbl{flex:1;font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
+.gcount .lbl small{display:block;font-size:11.5px;font-weight:500;color:var(--sub)}
+.gstep{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);color:var(--primary);font:inherit;font-size:18px;font-weight:800;line-height:1}
+.gstep:disabled{opacity:.35}
+.gnum{min-width:2.2em;text-align:center;font-size:17px;font-weight:800}
+.plus{display:inline-block;margin-left:3px;padding:0 6px;border-radius:999px;background:var(--date-bg);color:var(--date-text);font-size:10.5px;font-weight:800;vertical-align:1px}
 .fee-note{margin-top:8px;font-size:13px;font-weight:700;color:var(--sub)}
 .fee-note b{color:var(--text)}
 .members{margin-top:12px;font-size:14px}
@@ -481,22 +488,23 @@ let pendingEntries = 0;
 let latestData = null;
 let entryFailed = false;
 
-function applyLocalEntry(slotId, status, comment) {
+function applyLocalEntry(slotId, status, comment, guests) {
   const s = findSlot(slotId);
   if (!s) return;
   const others = s.entries.filter(x => !x.me);
   s.myStatus = status;
   s.myComment = status ? comment : '';
+  if (guestsOk(s)) s.myGuests = status === '○' ? guests : 0;
   s.entries = status
-    ? [...others, { name: state.me.name, status, comment: s.myComment, me: true, guest: !state.me.isMember }]
+    ? [...others, { name: state.me.name, status, comment: s.myComment, me: true, guest: !state.me.isMember, guests: status === '○' ? guests : 0 }]
     : others;
   render(state);
 }
 
-function saveEntryFast(slotId, status, comment, msg, mood) {
-  applyLocalEntry(slotId, status, comment);
+function saveEntryFast(slotId, status, comment, msg, mood, guests = 0) {
+  applyLocalEntry(slotId, status, comment, guests);
   if (msg) toast(msg, mood);
-  queueSave('entry', { slotId, status, comment });
+  queueSave('entry', { slotId, status, comment, guests: status === '○' ? guests : 0 });
 }
 
 // 管理者の「ゲストへの公開」切り替えも、押した瞬間に表示を変えて裏で保存する
@@ -539,7 +547,12 @@ const statusPill = s => {
   const c = statusClass(s);
   return `<span class="pill ${c}">${{ ok: '参加', maybe: '未定', no: '不参加', none: '未回答' }[c]}</span>`;
 };
-const okCount = s => s.entries.filter(e => e.status === '○').length;
+// 参加人数は「○の人＋その人が連れてくるゲスト」
+const headCount = e => 1 + (Number(e.guests) || 0);
+const okCount = s => s.entries.filter(e => e.status === '○').reduce((a, e) => a + headCount(e), 0);
+// ゲスト人数の入力欄は、サーバーが対応してから出す（デモでは常に出す）
+const GUESTS_MAX = 9;
+const guestsOk = s => DEMO || s.myGuests !== undefined;
 const slotSub = s => {
   const n = okCount(s);
   const cnt = s.capacity > 0 ? `参加 ${n}/${s.capacity}${n >= s.capacity ? '・満員' : ''}` : `参加 ${n}人`;
@@ -668,9 +681,11 @@ function weekHtml() {
 // 時間枠の中身（○△×・参加費・コメント・参加者）
 function slotHtml(s) {
   const by = st => s.entries.filter(e => e.status === st);
-  const okN = by('○').length;
+  const okN = okCount(s);
   const full = s.capacity > 0 && okN >= s.capacity;
   const count = s.capacity > 0 ? `参加 ${okN}/${s.capacity}${full ? '・満員' : ''}` : `参加 ${okN}人`;
+  const myG = Number(s.myGuests) || 0;
+  const room = s.capacity > 0 ? s.capacity - okN : Infinity; // あと何人入れるか
   const btn = (st, label) => {
     const disabled = full && st === '○' && s.myStatus !== '○';
     return `<button class="st${s.myStatus === st ? ' on' : ''}" data-slot="${esc(s.id)}" data-s="${st}"${disabled ? ' disabled' : ''}>${st} ${label}</button>`;
@@ -679,14 +694,20 @@ function slotHtml(s) {
     const list = by(st);
     if (!list.length) return '';
     const names = list.map(e =>
-      `<span class="${e.me ? 'me' : ''}">${esc(e.name)}</span>${e.guest ? '<span class="gtag">ゲスト</span>' : ''}${e.comment ? `<span class="c">（${esc(e.comment)}）</span>` : ''}`
+      `<span class="${e.me ? 'me' : ''}">${esc(e.name)}</span>${e.guest ? '<span class="gtag">ゲスト</span>' : ''}${st === '○' && Number(e.guests) > 0 ? `<span class="plus">＋ゲスト${Number(e.guests)}人</span>` : ''}${e.comment ? `<span class="c">（${esc(e.comment)}）</span>` : ''}`
     ).join('、');
     return `<div class="mrow"><span class="mk ${cls}">${st}</span><span class="names">${names}</span></div>`;
   }).join('');
   return `<div class="slot-head"><span>${s.fee > 0 ? `<span class="fee">参加費 ${yen(s.fee)}</span>` : ''}</span><span class="count${full ? ' full' : ''}">${count}</span></div>
     <div class="btns">${btn('○','参加')}${btn('△','未定')}${btn('×','不参加')}</div>
-    ${s.myStatus === '○' && s.fee > 0 ? `<div class="fee-note">🎾 参加費は <b>${yen(s.fee)}</b> だワン${pugFace('happy')}</div>` : ''}
-    ${s.myStatus ? `<input class="comment" data-slot="${esc(s.id)}" maxlength="100" placeholder="ひとこと（任意）例：30分遅れます" value="${esc(s.myComment)}">` : ''}
+    ${s.myStatus === '○' && guestsOk(s) ? `<div class="gcount">
+      <span class="lbl">一緒に来るゲストの人数<small>名前はひとことに書いてね</small></span>
+      <button class="gstep" data-gslot="${esc(s.id)}" data-gd="-1" aria-label="ゲストを1人減らす"${myG <= 0 ? ' disabled' : ''}>−</button>
+      <span class="gnum" aria-live="polite">${myG}人</span>
+      <button class="gstep" data-gslot="${esc(s.id)}" data-gd="1" aria-label="ゲストを1人増やす"${myG >= GUESTS_MAX || room <= 0 ? ' disabled' : ''}>＋</button>
+    </div>` : ''}
+    ${s.myStatus === '○' && s.fee > 0 ? `<div class="fee-note">🎾 参加費は <b>${yen(s.fee)}</b>${myG > 0 ? `（ゲスト${myG}人とあわせて <b>${yen(s.fee * (1 + myG))}</b>）` : ''} だワン${pugFace('happy')}</div>` : ''}
+    ${s.myStatus ? `<input class="comment" data-slot="${esc(s.id)}" maxlength="100" placeholder="${myG > 0 ? 'ひとこと 例：ゲストは山田さん' : 'ひとこと（任意）例：30分遅れます'}" value="${esc(s.myComment)}">` : ''}
     <div class="members">${rows || '<span class="note">まだ回答はないワン</span>'}</div>`;
 }
 
@@ -709,8 +730,19 @@ document.addEventListener('click', async e => {
       '×': ['また今度だワン！', 'sad'],
       '': ['回答を取り消したワン', 'oops'],
     }[next];
-    if (CONFIG.FAST_TAP) { saveEntryFast(s.id, next, next ? s.myComment : '', msg, mood); return; }
-    await run(() => api('entry', { slotId: s.id, status: next, comment: next ? s.myComment : '' }), msg, mood);
+    const g = next === '○' ? (Number(s.myGuests) || 0) : 0;
+    if (CONFIG.FAST_TAP) { saveEntryFast(s.id, next, next ? s.myComment : '', msg, mood, g); return; }
+    await run(() => api('entry', { slotId: s.id, status: next, comment: next ? s.myComment : '', guests: g }), msg, mood);
+    return;
+  }
+  // ゲスト人数の −／＋
+  const gs = e.target.closest('[data-gslot]');
+  if (gs) {
+    const s = findSlot(gs.dataset.gslot);
+    const g = Math.max(0, Math.min(GUESTS_MAX, (Number(s.myGuests) || 0) + Number(gs.dataset.gd)));
+    const msg = g > 0 ? `ゲスト${g}人で登録したワン！名前はひとことに書いてね` : 'ゲストなしにしたワン';
+    if (CONFIG.FAST_TAP) { saveEntryFast(s.id, '○', s.myComment, msg, 'happy', g); return; }
+    await run(() => api('entry', { slotId: s.id, status: '○', comment: s.myComment, guests: g }), msg, 'happy');
     return;
   }
   const gt = e.target.closest('[data-guest]');
@@ -764,8 +796,9 @@ document.addEventListener('click', async e => {
 document.addEventListener('change', async e => {
   if (!e.target.matches('input.comment')) return;
   const s = findSlot(e.target.dataset.slot);
-  if (CONFIG.FAST_TAP) { saveEntryFast(s.id, s.myStatus, e.target.value.trim(), 'コメントを保存したワン！', 'happy'); return; }
-  await run(() => api('entry', { slotId: s.id, status: s.myStatus, comment: e.target.value.trim() }), 'コメントを保存したワン！', 'happy');
+  const g = s.myStatus === '○' ? (Number(s.myGuests) || 0) : 0;
+  if (CONFIG.FAST_TAP) { saveEntryFast(s.id, s.myStatus, e.target.value.trim(), 'コメントを保存したワン！', 'happy', g); return; }
+  await run(() => api('entry', { slotId: s.id, status: s.myStatus, comment: e.target.value.trim(), guests: g }), 'コメントを保存したワン！', 'happy');
 });
 
 function switchTab(name) {
@@ -910,11 +943,12 @@ function demoApi(action, p) {
   if (action === 'entry') {
     const slot = db.slots.find(s => s.id === p.slotId);
     const cur = db.entries.find(x => x.slotId === p.slotId && x.userId === 'me');
-    const others = db.entries.filter(x => x.slotId === p.slotId && x.userId !== 'me' && x.status === '○').length;
-    if (p.status === '○' && slot.capacity > 0 && others >= slot.capacity) return fail('full', 'この時間帯は定員に達しています');
+    const guests = p.status === '○' ? Math.max(0, Math.min(GUESTS_MAX, parseInt(p.guests, 10) || 0)) : 0;
+    const others = db.entries.filter(x => x.slotId === p.slotId && x.userId !== 'me' && x.status === '○').reduce((a, x) => a + 1 + (x.guests || 0), 0);
+    if (p.status === '○' && slot.capacity > 0 && others + 1 + guests > slot.capacity) return fail('full', 'この時間帯は定員に達しています');
     if (!p.status) db.entries = db.entries.filter(x => x !== cur);
-    else if (cur) { cur.status = p.status; cur.comment = p.comment || ''; }
-    else db.entries.push({ slotId: p.slotId, userId: 'me', name: me, status: p.status, comment: p.comment || '', guest: !isMember, t: Date.now() });
+    else if (cur) { cur.status = p.status; cur.comment = p.comment || ''; cur.guests = guests; }
+    else db.entries.push({ slotId: p.slotId, userId: 'me', name: me, status: p.status, comment: p.comment || '', guest: !isMember, guests, t: Date.now() });
   } else if (action === 'setGuestOpen') {
     db.events.find(e => e.id === p.eventId).guestOpen = p.open;
   } else if (action === 'createEvents') {
@@ -954,7 +988,8 @@ function makeDemo() {
   const add = (slotId, name, status, comment = '', guest = false) => db.entries.push({ slotId, userId: name, name, status, comment, guest, t: db.entries.length });
   add('s1', 'たろう', '○'); add('s1', 'はなこ', '○'); add('s1', 'けん', '△', '仕事次第'); add('s1', 'みさき', '×');
   add('s2', 'たろう', '○'); add('s2', 'ゆうと', '○'); add('s2', 'あおい', '○'); add('s2', 'みさき', '○');
-  add('s3', 'はなこ', '○', '30分遅れます'); add('s3', 'けん', '○'); add('s3', 'さくら', '○', '友人の紹介です', true); add('s4', 'けん', '△');
+  add('s3', 'はなこ', '○', '30分遅れます');
+  add('s5', 'たろう', '○', 'ゲストはさとうさん、すずきさん'); db.entries[db.entries.length - 1].guests = 2; add('s3', 'けん', '○'); add('s3', 'さくら', '○', '友人の紹介です', true); add('s4', 'けん', '△');
   // 自分の回答（ホームの色分けが分かるように）
   db.entries.push({ slotId: 's1', userId: 'me', name: 'me', status: '○', comment: '', t: 100 });
   db.entries.push({ slotId: 's5', userId: 'me', name: 'me', status: '△', comment: '', t: 101 });
@@ -969,8 +1004,8 @@ function demoList(db, isMember) {
       const es = db.entries.filter(x => x.slotId === s.id).sort((a, b) => a.t - b.t);
       const m = es.find(x => x.userId === 'me');
       return { id: s.id, start: s.start, end: s.end, capacity: s.capacity, fee: s.fee,
-        entries: es.map(x => ({ name: x.userId === 'me' ? me : x.name, status: x.status, comment: x.comment, me: x.userId === 'me', guest: !!x.guest })),
-        myStatus: m ? m.status : '', myComment: m ? m.comment : '' };
+        entries: es.map(x => ({ name: x.userId === 'me' ? me : x.name, status: x.status, comment: x.comment, me: x.userId === 'me', guest: !!x.guest, guests: x.guests || 0 })),
+        myStatus: m ? m.status : '', myComment: m ? m.comment : '', myGuests: m ? (m.guests || 0) : 0 };
     }),
   }));
 }

@@ -66,10 +66,16 @@ function security() {
     check(syntaxOk(gs, 'code.js'), 'Code.gs に文法エラーがない');
     check(/api\.line\.me\/oauth2\/v2\.1\/verify/.test(gs) && /client_id:\s*LINE_CHANNEL_ID/.test(gs) && /p\.aud !== LINE_CHANNEL_ID/.test(gs),
       'LINEの検証API（client_id指定・aud確認）で本人確認している');
-    ['createEvents', 'deleteEvent', 'setGuestOpen'].forEach(a => {
+    ['createEvents', 'deleteEvent', 'setGuestOpen', 'setNotice'].forEach(a => {
       const m = gs.match(new RegExp("case '" + a + "':([\\s\\S]*?)break;"));
       check(!!m && /requireAdmin\(\)/.test(m[1]), a + ' の前に管理者チェックがある');
     });
+    // 一覧（list）と出欠（entry）以外の操作は、新しく増えたものも含めてすべて管理者だけ
+    const cases = [...gs.matchAll(/case '([A-Za-z]+)':([\s\S]*?)break;/g)].filter(m => !['list', 'entry'].includes(m[1]));
+    const noAdmin = cases.filter(m => !/requireAdmin\(\)/.test(m[2])).map(m => m[1]);
+    check(cases.length >= 4 && noAdmin.length === 0,
+      noAdmin.length ? '管理者チェックのない操作：' + noAdmin.join('、') : 'list・entry 以外の操作（' + cases.map(m => m[1]).join('、') + '）はすべて管理者チェックがある');
+    check(/function guestsOf_\(v\) \{ return clamp_\(/.test(gs) && /guests: 9/.test(gs), 'ゲスト人数をサーバー側で 0〜9 に制限している');
     check(/!isMember && !isTrue_\(ev\.v\[5\]\)/.test(gs), 'ゲストのメンバー限定日への回答をサーバー側で拒否している');
     check((gs.match(/safeCell_\(/g) || []).length >= 8, 'シートへの書き込みに safeCell_() を使っている（数式インジェクション対策）');
     check(/audit_\(req, user, res\)/.test(gs), '操作ログ（audit_）が残っている');

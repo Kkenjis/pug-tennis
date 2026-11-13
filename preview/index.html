@@ -108,6 +108,8 @@ main{padding:4px 16px 8px}
 .admin-bar{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 12px;border-radius:12px;background:var(--soft);font-size:12.5px;color:var(--sub);font-weight:700}
 .gtoggle{margin-left:auto;padding:5px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--card);color:var(--sub);font:inherit;font-size:12.5px;font-weight:800}
 .gtoggle.on{background:var(--g-bg);border-color:var(--g-text);color:var(--g-text)}
+.gtoggle.n.on{background:var(--ok-bg);border-color:var(--accent);color:var(--accent)}
+.gtoggle:disabled{opacity:.55}
 
 /* 時間枠の行（ホーム・カレンダー共通） */
 .srow{width:100%;display:flex;align-items:center;gap:12px;border:0;box-shadow:inset 0 0 0 1.5px var(--line);border-radius:14px;padding:12px 12px;margin:0 0 8px;text-align:left;
@@ -313,6 +315,10 @@ body.busy .st,body.busy .primary{opacity:.6}
       <div class="field">
         <label>メモ（任意）</label>
         <input id="note" maxlength="200" placeholder="例：ボールは各自持参">
+        <div id="noticeField" hidden>
+          <label class="check" style="margin-top:10px"><input type="checkbox" id="noticeOn"> ホームの「お知らせ」に出す</label>
+          <p class="hint" style="margin:6px 0 0">チェックした日のメモだけが、みんなのホームに表示されるワン（あとから予定の画面でも切り替えられるワン）</p>
+        </div>
       </div>
       <div class="field">
         <label>時間枠（定員0は無制限。参加費は開始時刻から自動で入ります）</label>
@@ -515,6 +521,14 @@ function saveGuestOpenFast(eventId, open, msg, mood) {
   queueSave('setGuestOpen', { eventId, open });
 }
 
+// 管理者の「お知らせ」切り替えも同じ方式
+function saveNoticeFast(eventId, on, msg, mood) {
+  const ev = state.events.find(x => x.id === eventId);
+  if (ev) { ev.notice = on; render(state); }
+  if (msg) toast(msg, mood);
+  queueSave('setNotice', { eventId, on });
+}
+
 // 保存の待ち行列（1件ずつ順番に送る）。全部終わったらサーバーの一覧で描き直し、失敗があれば読み直す
 function queueSave(action, payload) {
   pendingEntries++;
@@ -553,6 +567,9 @@ const okCount = s => s.entries.filter(e => e.status === '○').reduce((a, e) => 
 // ゲスト人数の入力欄は、サーバーが対応してから出す（デモでは常に出す）
 const GUESTS_MAX = 9;
 const guestsOk = s => DEMO || s.myGuests !== undefined;
+// お知らせの選択：サーバーが対応していれば（features.notice）チェックした日だけ。未対応のサーバーではメモのある日をすべて出す（これまでどおり）
+const noticeOk = () => DEMO || !!(state.features && state.features.notice);
+const showNotice = ev => !!ev.note && (noticeOk() ? ev.notice === true : true);
 const slotSub = s => {
   const n = okCount(s);
   const cnt = s.capacity > 0 ? `参加 ${n}/${s.capacity}${n >= s.capacity ? '・満員' : ''}` : `参加 ${n}人`;
@@ -565,6 +582,7 @@ function render(data) {
   $('#me').textContent = data.me.name ? `${data.me.name} さん${guest ? '（ゲスト）' : ''}` : '';
   $('#guestNote').hidden = !guest;
   $('#navAdmin').hidden = !data.me.isAdmin;
+  $('#noticeField').hidden = !noticeOk();
   if (!data.me.isAdmin && currentTab === 'admin') switchTab('home');
 
   // 予定画面の最初の表示：次の練習日（なければ今日）
@@ -583,7 +601,7 @@ function render(data) {
 // ----- ホーム：お知らせ（練習日のメモ）と直近の予定 -----
 function renderHome() {
   const up = upcomingEvents();
-  const notes = up.filter(ev => ev.note).slice(0, 2);
+  const notes = up.filter(showNotice).slice(0, 3);
   $('#noticeBox').hidden = !notes.length;
   $('#notices').innerHTML = notes.map(ev =>
     `<div class="notice"><b>${esc(fmtDateText(ev.date))}　${esc(ev.note)}</b><small>${esc(ev.place || '場所未定')}・練習日のメモ</small></div>`).join('');
@@ -640,6 +658,7 @@ function dayPanelHtml(d) {
     return `<div class="evinfo">📍 <b>${esc(ev.place || '場所未定')}</b>${ev.note ? `<span>${esc(ev.note)}</span>` : ''}${ev.guestOpen ? '<span class="guest-badge">ゲスト歓迎</span>' : ''}
         ${admin ? `<button class="del" data-del="${esc(ev.id)}" data-label="${esc(fmtDateText(ev.date))}">削除</button>` : ''}</div>
       ${admin ? `<div class="admin-bar">ゲストへの公開<button class="gtoggle${ev.guestOpen ? ' on' : ''}" data-guest="${esc(ev.id)}" data-open="${ev.guestOpen ? 0 : 1}">${ev.guestOpen ? '公開中' : 'メンバー限定'}</button></div>` : ''}
+      ${admin && noticeOk() ? `<div class="admin-bar">ホームのお知らせ<button class="gtoggle n${ev.notice ? ' on' : ''}" data-notice="${esc(ev.id)}" data-on="${ev.notice ? 0 : 1}"${!ev.note && !ev.notice ? ' disabled title="メモがある日だけ出せます"' : ''}>${ev.notice ? '表示中' : ev.note ? '出さない' : 'メモなし'}</button></div>` : ''}
       ${ev.slots.length ? ev.slots.map(s => slotRowHtml(ev, s)).join('') : '<p class="note">時間枠がないワン</p>'}`;
   }).join('');
 }
@@ -756,6 +775,15 @@ document.addEventListener('click', async e => {
       open ? 'ゲストにも公開したワン！' : 'メンバー限定に戻したワン', open ? 'happy' : 'ok');
     return;
   }
+  const nt = e.target.closest('[data-notice]');
+  if (nt) {
+    if (nt.disabled) return;
+    const on = nt.dataset.on === '1';
+    const msg = on ? 'ホームのお知らせに出したワン！' : 'お知らせから外したワン';
+    if (CONFIG.FAST_TAP) { saveNoticeFast(nt.dataset.notice, on, msg, on ? 'happy' : 'ok'); return; }
+    await run(() => api('setNotice', { eventId: nt.dataset.notice, on }), msg, on ? 'happy' : 'ok');
+    return;
+  }
   const del = e.target.closest('[data-del]');
   if (del) {
     if (!confirm(`${del.dataset.label} の練習日を削除するワン？\n回答もすべて消えるワン`)) return;
@@ -862,10 +890,13 @@ $('#submitEvents').onclick = async () => {
   if (!dates.length) return toast('開催日を追加してほしいワン（日付を選んで「追加」）', 'oops');
   if (slots.some(s => !s.start || !s.end || s.start >= s.end)) return toast('時間枠の開始・終了を確認してほしいワン', 'oops');
   const guestOpen = $('#guestOpen').checked;
-  const ok = await run(() => api('createEvents', { dates, place: $('#place').value.trim(), note: $('#note').value.trim(), slots, guestOpen }),
-    `${dates.length}日分を登録したワン！${guestOpen ? '（ゲストにも公開）' : ''}`, 'happy');
+  const note = $('#note').value.trim();
+  const notice = noticeOk() && $('#noticeOn').checked;
+  if (notice && !note) return toast('お知らせに出すときは、メモを書いてほしいワン', 'oops');
+  const ok = await run(() => api('createEvents', { dates, place: $('#place').value.trim(), note, slots, guestOpen, notice }),
+    `${dates.length}日分を登録したワン！${guestOpen ? '（ゲストにも公開）' : ''}${notice ? '（お知らせに表示）' : ''}`, 'happy');
   if (ok) {
-    pickedDates.clear(); renderChips(); $('#guestOpen').checked = false;
+    pickedDates.clear(); renderChips(); $('#guestOpen').checked = false; $('#noticeOn').checked = false;
     selDate = dates[0]; calMonth = selDate.slice(0, 7); weekStart = addDays(selDate, -dow(selDate)); schedMode = 'cal'; openSlot = '';
     switchTab('sched'); renderSched();
   }
@@ -936,7 +967,7 @@ function demoApi(action, p) {
   const me = { admin: 'デモ管理者', member: 'デモメンバー', guest: 'デモゲスト' }[DEMO_ROLE];
   const isMember = DEMO_ROLE !== 'guest';
   const reply = () => new Promise(r => setTimeout(() => r({
-    ok: true, today: localYmd(), me: { name: me, isAdmin: DEMO_ADMIN, isMember }, settings: db.settings, events: demoList(db, isMember),
+    ok: true, today: localYmd(), me: { name: me, isAdmin: DEMO_ADMIN, isMember }, settings: db.settings, features: { guests: true, notice: true }, events: demoList(db, isMember),
   }), 200));
   const fail = (error, message) => new Promise(r => setTimeout(() => r({ ok: false, error, message }), 200)); // 本番と同じ形のエラー
 
@@ -951,10 +982,15 @@ function demoApi(action, p) {
     else db.entries.push({ slotId: p.slotId, userId: 'me', name: me, status: p.status, comment: p.comment || '', guest: !isMember, guests, t: Date.now() });
   } else if (action === 'setGuestOpen') {
     db.events.find(e => e.id === p.eventId).guestOpen = p.open;
+  } else if (action === 'setNotice') {
+    const ev = db.events.find(e => e.id === p.eventId);
+    if (p.on && !ev.note) return fail('bad_request', 'お知らせに出すには、この練習日にメモが必要です');
+    ev.notice = !!p.on;
   } else if (action === 'createEvents') {
+    if (p.notice && !p.note) return fail('bad_request', 'お知らせに出すときは、メモを入力してください');
     p.dates.forEach(d => {
       const id = 'ev' + Math.random().toString(36).slice(2, 8);
-      db.events.push({ id, date: d, place: p.place, note: p.note, guestOpen: !!p.guestOpen });
+      db.events.push({ id, date: d, place: p.place, note: p.note, guestOpen: !!p.guestOpen, notice: !!p.notice });
       p.slots.forEach(s => db.slots.push({ id: 'sl' + Math.random().toString(36).slice(2, 8), eventId: id,
         start: s.start, end: s.end, capacity: s.capacity, fee: s.fee === '' ? defaultFee(s.start) : Number(s.fee) }));
     });
@@ -971,9 +1007,9 @@ function makeDemo() {
   const db = {
     settings: { morningFee: 300, nightFee: 500, nightStart: '17:00' },
     events: [
-      { id: 'e1', date: day(2), place: '○○公園テニスコート 3番', note: 'ボールは各自持参', guestOpen: false },
-      { id: 'e2', date: day(5), place: '△△運動公園', note: '特別イベント：初心者歓迎デー', guestOpen: true },
-      { id: 'e3', date: day(9), place: '○○公園テニスコート 3番', note: '', guestOpen: false },
+      { id: 'e1', date: day(2), place: '○○公園テニスコート 3番', note: 'ボールは各自持参', guestOpen: false, notice: false },
+      { id: 'e2', date: day(5), place: '△△運動公園', note: '特別イベント：初心者歓迎デー', guestOpen: true, notice: true },
+      { id: 'e3', date: day(9), place: '○○公園テニスコート 3番', note: '', guestOpen: false, notice: false },
     ],
     slots: [
       { id: 's1', eventId: 'e1', start: '09:00', end: '11:00', capacity: 8, fee: 300 },

@@ -6,6 +6,8 @@
  * ・監視（日次レポート・不審操作の通知）を使うときは installTriggers() を一度実行してください
  * ・LINEから受け取る情報は「表示名」と内部判別用の userId のみです
  * ・参加費は金額の設定と表示のみ（支払いの記録・確認は行いません）
+ * ・ゲスト人数：アプリを使わない同伴者の人数を、声をかけたメンバーが自分の回答（○）に足す。定員はゲスト込みで数える
+ * ・お知らせ：管理者が選んだ練習日のメモを、ホームの「お知らせ」に出す
  */
 
 // ===== 設定 =====
@@ -17,15 +19,15 @@ const REPORT_TO = '';        // 通知の送り先（カンマ区切り）。空
 const NEW_USER_NOTIFY_PROP = 'NEW_USER_NOTIFY_TO';
 const NEW_USER_NOTIFY_MAX = 20; // 1日に送る上限（大量登録でメールの送信枠を使い切らないため）
 const LOG_KEEP_DAYS = 90;    // 操作ログの保存日数
-const LIMITS = { dates: 62, slots: 10, capacity: 999, fee: 100000, name: 50, comment: 100, place: 50, note: 200 };
+const LIMITS = { dates: 62, slots: 10, capacity: 999, fee: 100000, name: 50, comment: 100, place: 50, note: 200, guests: 9 };
 
 let ssCache_ = null;
 function ss_() { return ssCache_ || (ssCache_ = SpreadsheetApp.openById(SPREADSHEET_ID)); }
 
 const SHEETS = {
-  events:   { name: '開催日',   headers: ['eventId', '日付', '場所', 'メモ', '登録日時', 'ゲスト公開'] },
+  events:   { name: '開催日',   headers: ['eventId', '日付', '場所', 'メモ', '登録日時', 'ゲスト公開', 'お知らせ'] },
   slots:    { name: '時間枠',   headers: ['slotId', 'eventId', '開始', '終了', '定員(0=無制限)', '参加費(円)'] },
-  entries:  { name: '出欠',     headers: ['slotId', 'userId', '表示名', '出欠', 'コメント', '更新日時'] },
+  entries:  { name: '出欠',     headers: ['slotId', 'userId', '表示名', '出欠', 'コメント', '更新日時', 'ゲスト人数'] },
   users:    { name: 'ユーザー', headers: ['userId', '表示名', '最終アクセス', '管理者', '区分'] },
   settings: { name: '設定',     headers: ['項目', '値', '説明'] },
   logs:     { name: '操作ログ', headers: ['日時', 'userId', '表示名', '区分', '操作', '対象', '結果', '詳細'] },
@@ -62,11 +64,13 @@ function setup() {
     SpreadsheetApp.newDataValidation().requireValueInList([MEMBER, GUEST], true).setAllowInvalid(false).build());
   // 区分が空の既存ユーザー（この機能より前に登録された人）はメンバーとして移行
   readRows_('users').forEach(r => { if (!str_(r.v[4])) us.getRange(r.row, 5).setValue(MEMBER); });
-  // 開催日の「ゲスト公開」列：既存の行にチェックボックスを付ける
+  // 開催日の「ゲスト公開」「お知らせ」列：既存の行にチェックボックスを付ける（お知らせは空欄＝オフ）
   const evs = sheet_('events');
   readRows_('events').forEach(r => {
-    const c = evs.getRange(r.row, 6);
-    if (!c.getDataValidation()) c.insertCheckboxes();
+    [6, 7].forEach(col => {
+      const c = evs.getRange(r.row, col);
+      if (!c.getDataValidation()) c.insertCheckboxes();
+    });
   });
   // 設定シートに足りない項目を追加
   const existing = readRows_('settings').map(r => str_(r.v[0]));
@@ -116,6 +120,10 @@ function handle_(req, user) {
       requireAdmin();
       withLock_(() => setGuestOpen_(str_(req.eventId), req.open === true));
       break;
+    case 'setNotice':
+      requireAdmin();
+      withLock_(() => setNotice_(str_(req.eventId), req.on === true));
+      break;
     case 'createEvents':
       requireAdmin();
       withLock_(() => createEvents_(req));
@@ -134,6 +142,8 @@ function handle_(req, user) {
     today: today_(),
     me: { name: user.name, isAdmin, isMember: role.isMember },
     settings,
+    // このサーバーが対応している機能（お試し版の画面は、対応しているときだけ入力欄を出す）
+    features: { guests: true, notice: true },
     events: listEvents_(user.userId, settings, role.isMember),
   };
 }
@@ -248,7 +258,7 @@ function listEvents_(userId, settings, isMember) {
 
   // メンバーは全日程、ゲストは「ゲスト公開」の日だけ
   const events = readRowsCached_('events')
-    .map(({ v }) => ({ id: str_(v[0]), date: fmtDate_(v[1]), place: cellText_(v[2]), note: cellText_(v[3]), guestOpen: isTrue_(v[5]) }))
+    .map(({ v }) => ({ id: str_(v[0]), date: fmtDate_(v[1]), place: cellText_(v[2]), note: cellText_(v[3]), guestOpen: isTrue_(v[5]), notice: isTrue_(v[6]) }))
     .filter(ev => ev.id && ev.date && ev.date >= today && (isMember || ev.guestOpen))
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -266,6 +276,7 @@ function listEvents_(userId, settings, isMember) {
     return {
       slotId: str_(v[0]), userId: str_(v[1]), name: (p && p.name) || cellText_(v[2]), guest: !!(p && p.guest),
       status: str_(v[3]), comment: cellText_(v[4]), updatedAt: str_(v[5]),
+      guests: str_(v[3]) === '○' ? guestsOf_(v[6]) : 0,
     };
   }).filter(x => STATUSES.includes(x.status));
 
@@ -280,9 +291,10 @@ function listEvents_(userId, settings, isMember) {
         return {
           id: s.id, start: s.start, end: s.end, capacity: s.capacity, fee: s.fee,
           // userId は画面に返さない
-          entries: es.map(x => ({ name: x.name, status: x.status, comment: x.comment, me: x.userId === userId, guest: x.guest })),
+          entries: es.map(x => ({ name: x.name, status: x.status, comment: x.comment, me: x.userId === userId, guest: x.guest, guests: x.guests })),
           myStatus: mine ? mine.status : '',
           myComment: mine ? mine.comment : '',
+          myGuests: mine ? mine.guests : 0,
         };
       });
   });
@@ -295,6 +307,8 @@ function saveEntry_(user, req, isMember) {
   const status = str_(req.status); // '○' '△' '×'、空文字は取消
   if (status && !STATUSES.includes(status)) throw appErr_('bad_request', '出欠の値が不正です');
   const comment = str_(req.comment).slice(0, LIMITS.comment);
+  // ゲスト人数は ○ のときだけ。送ってこない画面（今の本番）は 0 人
+  const guests = status === '○' ? guestsOf_(req.guests) : 0;
 
   const slot = readRows_('slots').find(r => str_(r.v[0]) === slotId);
   if (!slot) throw appErr_('not_found', 'この時間枠は見つかりません（削除された可能性があります）');
@@ -307,9 +321,15 @@ function saveEntry_(user, req, isMember) {
 
   if (status === '○') {
     const cap = clamp_(parseInt(slot.v[4], 10) || 0, 0, LIMITS.capacity);
-    if (cap > 0) {
-      const others = rows.filter(r => str_(r.v[0]) === slotId && str_(r.v[3]) === '○' && str_(r.v[1]) !== user.userId).length;
-      if (others >= cap) throw appErr_('full', 'この時間帯は定員に達しています');
+    // 人数は「本人＋ゲスト」で数える。自分の人数を増やさない保存（ひとことの変更など）は定員で止めない
+    const headOf = r => 1 + guestsOf_(r.v[6]);
+    const before = mine && str_(mine.v[3]) === '○' ? headOf(mine) : 0;
+    if (cap > 0 && 1 + guests > before) {
+      const others = rows.filter(r => str_(r.v[0]) === slotId && str_(r.v[3]) === '○' && str_(r.v[1]) !== user.userId)
+        .reduce((n, r) => n + headOf(r), 0);
+      if (others + 1 + guests > cap) {
+        throw appErr_('full', guests ? 'ゲストを含めると定員を超えます（残り' + Math.max(0, cap - others - 1) + '人まで）' : 'この時間帯は定員に達しています');
+      }
     }
   }
 
@@ -319,7 +339,7 @@ function saveEntry_(user, req, isMember) {
     invalidate_('entries');
     return;
   }
-  const values = [[slotId, user.userId, safeCell_(user.name), status, safeCell_(comment), now_()]];
+  const values = [[slotId, user.userId, safeCell_(user.name), status, safeCell_(comment), now_(), String(guests)]];
   if (mine) {
     sh.getRange(mine.row, 1, 1, values[0].length).setNumberFormat('@').setValues(values);
   } else {
@@ -353,6 +373,7 @@ function createEvents_(req) {
 
   const place = safeCell_(str_(req.place).slice(0, LIMITS.place));
   const note = safeCell_(str_(req.note).slice(0, LIMITS.note));
+  if (req.notice === true && !note) throw appErr_('bad_request', 'お知らせに出すときは、メモを入力してください');
   const ts = now_();
   const evRows = [];
   const slRows = [];
@@ -367,6 +388,9 @@ function createEvents_(req) {
   const guestCells = evSh.getRange(first, 6, evRows.length, 1);
   guestCells.insertCheckboxes();
   if (req.guestOpen === true) guestCells.setValue(true);
+  const noticeCells = evSh.getRange(first, 7, evRows.length, 1);
+  noticeCells.insertCheckboxes();
+  if (req.notice === true) noticeCells.setValue(true);
   appendRows_('slots', slRows);
   invalidate_('events', 'slots');
 }
@@ -378,6 +402,17 @@ function setGuestOpen_(eventId, open) {
   const cell = sheet_('events').getRange(row.row, 6);
   if (!cell.getDataValidation()) cell.insertCheckboxes();
   cell.setValue(open);
+  invalidate_('events');
+}
+
+// ===== 管理者：ホームの「お知らせ」に出すかの切り替え（メモがある日だけオンにできる） =====
+function setNotice_(eventId, on) {
+  const row = readRows_('events').find(r => str_(r.v[0]) === eventId);
+  if (!row) throw appErr_('not_found', 'この練習日は見つかりません（削除された可能性があります）');
+  if (on && !cellText_(row.v[3])) throw appErr_('bad_request', 'お知らせに出すには、この練習日にメモが必要です');
+  const cell = sheet_('events').getRange(row.row, 7);
+  if (!cell.getDataValidation()) cell.insertCheckboxes();
+  cell.setValue(on);
   invalidate_('events');
 }
 
@@ -411,8 +446,9 @@ function audit_(req, user, res) {
     let detail = '';
     if (failed) detail = str_(res.message).slice(0, 100);
     else if (isNew) detail = '初回アクセス';
-    else if (action === 'entry') detail = str_(req.status) || '取消';
+    else if (action === 'entry') detail = (str_(req.status) || '取消') + (str_(req.status) === '○' && guestsOf_(req.guests) ? ' ＋ゲスト' + guestsOf_(req.guests) + '人' : '');
     else if (action === 'setGuestOpen') detail = req.open === true ? 'ゲスト公開' : 'メンバー限定';
+    else if (action === 'setNotice') detail = req.on === true ? 'お知らせに表示' : 'お知らせから外す';
     sheet_('logs').appendRow([
       now_(), user ? user.userId : '-', user ? safeCell_(user.name) : '-', user ? (user.kind || '-') : '-',
       action, target, failed ? res.error : 'ok', safeCell_(detail),
@@ -643,6 +679,8 @@ function appErr_(code, message) { const e = new Error(message); e.code = code; r
 function str_(v) { return v == null ? '' : String(v).trim(); }
 function isTrue_(v) { return v === true || str_(v).toUpperCase() === 'TRUE'; }
 function clamp_(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+// ゲスト人数（同伴者）を 0〜LIMITS.guests の整数にそろえる。空欄・不正な値は 0
+function guestsOf_(v) { return clamp_(parseInt(str_(v), 10) || 0, 0, LIMITS.guests); }
 function now_() { return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss'); }
 function today_() { return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'); }
 function newId_(prefix) { return prefix + '_' + Utilities.getUuid().replace(/-/g, '').slice(0, 10); }

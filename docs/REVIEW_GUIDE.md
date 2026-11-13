@@ -4,9 +4,28 @@ PUG 練習出欠アプリのセキュリティと設計を、Web に詳しい方
 自動チェック（GitHub Actions）と運営による目視チェックはすでに通っています。今回は **3 人目の独立したレビュー** をお願いしたいです。
 
 - まず読むもの：[仕組みの全体像（ARCHITECTURE.md）](ARCHITECTURE.md)。構成図・データフロー・権限・対策の一覧があります
-- 対象コード：[`index.html`](../index.html)（画面）、[`gas/Code.gs`](../gas/Code.gs)（API）、[`scripts/review-gate.js`](../scripts/review-gate.js)、[`.github/workflows/review-gate.yml`](../.github/workflows/review-gate.yml)
+- 対象コード：[`index.html`](../index.html)（画面）、[`preview/index.html`](../preview/index.html)（新デザインのお試し版）、[`gas/Code.gs`](../gas/Code.gs)（API）、[`scripts/review-gate.js`](../scripts/review-gate.js)、[`.github/workflows/review-gate.yml`](../.github/workflows/review-gate.yml)
 - 規模：画面 約 600 行、API 約 570 行（どちらもライブラリなし・1 ファイル）
 - 所要時間の目安：30〜60 分
+
+## 0. 今回の依頼：新デザインのお試し版（PR #15・#16）
+
+ホームと予定の見た目を新しくしたお試し版 `preview/index.html`（PR #15、公開済み）と、そのための **ゲスト人数** と **お知らせの選択** のサーバー対応（PR #16）です。本番の `index.html` は変わりません。流れと図は [ARCHITECTURE.md の 4-4](ARCHITECTURE.md#4-4-新デザインお試し版とゲスト人数) にあります。
+
+- デモ：`https://kkenjis.github.io/pug-tennis/preview/?demo`（管理者）、`?demo=member`、`?demo=guest`。本番には接続しません
+- ゲスト人数：メンバーで時間枠を開いて ○ にすると出ます
+- お知らせ：管理者で「登録」タブのメモの下にチェック、予定の日ごとに「ホームのお知らせ」の切り替え
+- `gas/Code.gs` の変更は、PR #16 のマージ後に Apps Script へ反映し、`setup()` を 1 回実行して列を足します
+
+見てほしい観点：
+
+- [ ] 権限：`setNotice` の前に `requireAdmin()` があるか。`review-gate.js` の「list・entry 以外の操作すべてに管理者チェック」の検査に抜け道はないか
+- [ ] 定員：`saveEntry_` のゲスト込みの判定（他の人の「本人＋ゲスト」＋自分の「本人＋ゲスト」）。自分の人数を増やさない保存は止めない作りで問題ないか。同時に押されたとき（`withLock_`）に定員を超えないか
+- [ ] 入力の検証：`guests` を `guestsOf_` で 0〜9 の整数にしているか（文字列・負の数・巨大な値・配列）。`notice` は `=== true` のときだけオンか。メモのない日をオンにできないか
+- [ ] 互換性：`guests` / `notice` を送らない今の本番の画面で、結果が今までと同じか（運営の比較テストでは一致）
+- [ ] XSS：新しく増えた描画（お知らせ、カレンダー、週間タイムライン、時間枠の詳細、「＋ゲストN人」、お知らせの切り替え）で、利用者由来の文字がすべて `esc()` を通っているか。ゲスト人数は `Number()` を通しているか
+- [ ] お試し版が本番データにつながること（`?demo` なし）による問題はないか。サーバーが対応するまで入力欄を出さない作り（`guestsOk` / `noticeOk`）で十分か
+- [ ] `setup()` を本番のシートで実行して、既存のデータが壊れないか（列の追加とチェックボックスだけのはず）
 
 ## 1. 手元で動かす（任意・5 分）
 
